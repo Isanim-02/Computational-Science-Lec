@@ -16,8 +16,14 @@ seaborn>=0.11.0
 # Spatial Interpolation (Kriging)
 pykrige>=1.7.0
 
-# Interactive Maps (NEW!)
+# Interactive Maps
 folium>=0.14.0
+
+# Web App Frameworks (for dynamic dashboards)
+streamlit>=1.28.0
+dash>=2.14.0
+dash-bootstrap-components>=1.5.0
+plotly>=5.17.0
 
 # Additional utilities
 joblib>=1.0.0

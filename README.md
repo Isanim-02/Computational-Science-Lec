@@ -1,287 +1,234 @@
-# 🌧️ Philippines Rainfall Prediction Model
+# 🌧️ Philippines Rainfall Prediction System
 
-A comprehensive machine learning system for predicting monthly rainfall in the Philippines using **Support Vector Regression (SVR)** with multiple kernel functions.
-
-## 📋 Project Overview
-
-This project implements a predictive rainfall model that analyzes historical weather data from 2020-2023 across multiple Philippine cities. The model uses Support Vector Regression with three different kernel tricks to predict monthly rainfall based on geographic, meteorological, and climate anomaly features.
+A comprehensive rainfall prediction and forecasting system for the Philippines using Support Vector Regression (SVR) with machine learning.
 
 ## 🎯 Features
 
-### Machine Learning Models
-- **Support Vector Regression (SVR)** with three kernel types:
-  - **Radial Basis Function (RBF)** - Captures non-linear patterns
-  - **Polynomial** - Models polynomial relationships
-  - **Sigmoid** - Neural network-like transformations
+### 📜 Historical Analysis (2020-2023)
+- Analyze actual rainfall data from 2020-2023
+- Compare predictions with actual measurements
+- Evaluate model performance with RMSE
+- View 141 Philippine cities
 
-### Input Features (9 variables)
-1. **Month** - Seasonal patterns
-2. **Latitude** - Geographic location (North-South)
-3. **Longitude** - Geographic location (East-West)
-4. **Temperature** - Monthly average temperature (°C)
-5. **Humidity Proxy** - Apparent temperature indicator
-6. **Air Pressure Proxy** - Evapotranspiration indicator
-7. **ONI Index** - Oceanic Niño Index (El Niño/La Niña strength)
-8. **El Niño Indicator** - Binary flag for El Niño conditions
-9. **La Niña Indicator** - Binary flag for La Niña conditions
+### 🔮 Future Forecasts (2024-2030)
+- Predict rainfall for years 2024-2030
+- Three climate scenarios:
+  - ⚪ **Neutral** - Normal conditions
+  - 🔴 **El Niño** - Warmer/Drier conditions
+  - 🔵 **La Niña** - Cooler/Wetter conditions
+- Scenario comparison charts
+- Uncertainty quantification
 
-### Target Variable
-- **Monthly Rainfall** - Total precipitation in millimeters (mm)
+### 🗺️ Interactive Visualizations
+- Interactive maps with Plotly
+- City-specific predictions
+- Scenario comparisons
+- Monthly trends
 
-### Evaluation Metrics
-- **RMSE (Root Mean Square Error)** - Prediction accuracy in mm
-- **R² (Coefficient of Determination)** - Model fit quality (0-1)
-- **K-Fold Cross-Validation** - Robust performance assessment (k=5)
-
-### Spatial Analysis
-- **Ordinary Kriging** - Geostatistical interpolation
-- **Variance Mapping** - Uncertainty quantification
-- **Gap Visualization** - Identifying prediction gaps
-
-## 📊 Project Structure
-
-```
-CS Lec/
-│
-├── rainfall_prediction_svr.py      # Main prediction script
-├── requirements.txt                 # Python dependencies
-├── README.md                        # This file
-│
-├── cities.csv                       # City coordinates (lat/lon)
-├── daily_data_combined_2020_to_2023.csv  # Historical weather data
-│
-├── Frigillana_Vidal_Villamor_-_CSPE001_-_FA1.pdf  # Project guide
-└── NOAA ONI Table Data Retrieval.pdf               # ENSO data reference
-```
-
-## 🚀 Installation
+## 🚀 Quick Start
 
 ### Prerequisites
+
 - Python 3.8 or higher
-- pip package manager
+- Required data files:
+  - `daily_data_combined_2020_to_2023.csv`
+  - `cities.csv`
 
-### Setup
-
-1. **Clone or download this repository**
-
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Verify data files are present:**
-   - `cities.csv`
-   - `daily_data_combined_2020_to_2023.csv`
-
-## 💻 Usage
-
-### Basic Execution
-
-Run the complete pipeline:
+### Installation
 
 ```bash
-python rainfall_prediction_svr.py
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-### What the Script Does
+### Run the App
 
-1. **Loads Data** - Reads city coordinates and daily weather records
-2. **Preprocesses** - Aggregates daily data to monthly level
-3. **Adds ENSO Indices** - Incorporates El Niño/La Niña indicators
-4. **Prepares Features** - Standardizes input variables
-5. **Trains Models** - Fits SVR with RBF, Polynomial, and Sigmoid kernels
-6. **Cross-Validates** - 5-fold validation with RMSE and R² metrics
-7. **Visualizes** - Generates performance comparison plots
-8. **Spatial Analysis** - Creates Kriging interpolation maps
-
-### Output Files
-
-After execution, the following files will be generated:
-
-1. **svr_kernel_comparison.png**
-   - Bar chart comparing RMSE and R² across kernels
-   - Shows mean values with error bars
-
-2. **svr_fold_details.png**
-   - Fold-by-fold performance visualization
-   - RMSE and R² trends across validation folds
-
-3. **kriging_interpolation_rbf.png**
-   - Spatial interpolation map using Kriging
-   - Uncertainty/variance visualization
-
-## 📈 Expected Results
-
-### Typical Performance Metrics
-
-| Kernel       | RMSE (mm)      | R² Score       |
-|-------------|----------------|----------------|
-| **RBF**     | ~50-80         | ~0.60-0.75     |
-| **Polynomial** | ~55-85      | ~0.55-0.70     |
-| **Sigmoid** | ~60-90         | ~0.50-0.65     |
-
-*Note: Actual values depend on data quality and sample size*
-
-### Interpretation
-
-- **Lower RMSE** = Better prediction accuracy
-- **Higher R²** = Better model fit (1.0 = perfect, 0.0 = baseline)
-- **RBF kernel** typically performs best for rainfall data
-
-## 🔧 Customization
-
-### Adjust Sample Size
-
-For faster testing, modify `main()` function:
-
-```python
-# Test with smaller sample
-predictor.load_data(sample_size=50000)
-
-# Use full dataset (slower but more accurate)
-predictor.load_data(sample_size=None)
-```
-
-### Change Cross-Validation Folds
-
-```python
-# Use 10-fold cross-validation
-predictor.evaluate_with_kfold(n_splits=10)
-```
-
-### Modify SVR Parameters
-
-```python
-custom_params = {
-    'rbf': {'kernel': 'rbf', 'C': 200, 'gamma': 'auto', 'epsilon': 0.2},
-    'poly': {'kernel': 'poly', 'C': 150, 'degree': 4, 'gamma': 'scale', 'epsilon': 0.15},
-    'sigmoid': {'kernel': 'sigmoid', 'C': 150, 'gamma': 'scale', 'epsilon': 0.15}
-}
-predictor.train_svr_models(kernel_params=custom_params)
-```
-
-### Update ONI Indices
-
-Edit the `oni_data` dictionary in `add_enso_indices()` method with actual NOAA data from:
-https://origin.cpc.ncep.noaa.gov/products/analysis_monitoring/ensostuff/ONI_v5.php
-
-## 🌏 About El Niño/La Niña
-
-### ENSO Impacts on Philippines Rainfall
-
-- **El Niño** (ONI > +0.5): Warmer Pacific → Typically DRIER conditions
-- **La Niña** (ONI < -0.5): Cooler Pacific → Typically WETTER conditions
-- **Neutral** (-0.5 to +0.5): Normal rainfall patterns
-
-The model incorporates these climate anomalies to improve prediction accuracy.
-
-## 📊 Spatial Interpolation (Kriging)
-
-### What is Kriging?
-
-Ordinary Kriging is a geostatistical technique that:
-- Estimates values at unmeasured locations
-- Provides uncertainty quantification
-- Respects spatial autocorrelation
-- Creates smooth, continuous surfaces
-
-### Interpreting Kriging Results
-
-1. **Rainfall Map**: Shows predicted rainfall across the Philippines
-   - Blue areas = Lower rainfall
-   - Yellow/Green areas = Higher rainfall
-   - Black dots = Actual measurement locations
-
-2. **Variance Map**: Indicates prediction uncertainty
-   - Low variance = High confidence
-   - High variance = Gaps in data coverage (need more stations)
-
-## 🐛 Troubleshooting
-
-### Memory Issues
-
-If you encounter memory errors:
-```python
-predictor.load_data(sample_size=50000)  # Reduce sample size
-```
-
-### PyKrige Installation Issues
-
-If Kriging fails to install:
+**Windows:**
 ```bash
-# Windows
-pip install pykrige --no-cache-dir
-
-# Linux/Mac
-pip install pykrige
+# Double-click START_DYNAMIC_APP.bat
+# OR run:
+streamlit run streamlit_rainfall_app.py
 ```
 
-Alternative: The script will generate simple spatial plots without Kriging.
+**Linux/Mac:**
+```bash
+# Run the launcher:
+./start_dynamic_app.sh
+# OR directly:
+streamlit run streamlit_rainfall_app.py
+```
 
-### Missing Data Warnings
+The app will automatically open in your web browser at `http://localhost:8501`
 
-The script automatically handles missing values by:
-- Dropping rows with NaN values
-- Reporting the final dataset size
+## 📖 How to Use
 
-## 📚 References
+### Step 1: Choose Mode
+- **📜 Historical (2020-2023)** - Analyze past data
+- **🔮 Forecast (2024-2030)** - Predict future rainfall
 
-### Data Sources
-- **Weather Data**: Open-Meteo Historical Weather API
-- **ENSO Indices**: NOAA Climate Prediction Center ONI
-- **City Coordinates**: OpenStreetMap / GeoNames
+### Step 2: Select Parameters
 
-### Scientific Background
-- Support Vector Machines: Vapnik, V. (1995). "The Nature of Statistical Learning Theory"
-- Kriging: Matheron, G. (1963). "Principles of Geostatistics"
-- ENSO Impacts: Philippine Atmospheric, Geophysical and Astronomical Services Administration (PAGASA)
+**Historical Mode:**
+- Year: 2020-2023
+- Month: January-December
+- Kernel: RBF, Polynomial, or Sigmoid
+- Map Type: Scatter or Density Heatmap
 
-## 👥 Contributors
+**Forecast Mode:**
+- Year: 2024-2030
+- Month: January-December
+- Climate Scenario: Neutral, El Niño, or La Niña
+- Kernel: RBF, Polynomial, or Sigmoid
+- Map Type: Scatter or Density Heatmap
 
-- **Project**: CSPE001 Final Assessment
-- **Students**: Frigillana, Vidal, Villamor
-- **Course**: Computer Science & Python Engineering
+### Step 3: Explore Results
+- View interactive map
+- Check metrics (cities, RMSE, rainfall)
+- Compare scenarios
+- Analyze trends
 
-## 📝 License
+## 📊 Technical Details
 
-This project is for educational purposes as part of CSPE001 coursework.
+### Machine Learning Model
+- **Algorithm:** Support Vector Regression (SVR)
+- **Kernels:** RBF, Polynomial, Sigmoid
+- **Features:** Month, Location, Temperature, Humidity, Pressure, ENSO Index
+- **Target:** Monthly Rainfall (mm)
 
-## 🤝 Acknowledgments
+### Forecasting Approach
+**Two-Stage Process:**
 
-- NOAA Climate Prediction Center for ENSO data
-- Open-Meteo for weather data access
-- Philippine Atmospheric, Geophysical and Astronomical Services Administration (PAGASA)
-- Scikit-learn and PyKrige development teams
+1. **Stage 1:** Forecast meteorological features
+   - Temperature (with warming trend)
+   - Humidity (temperature-adjusted)
+   - Air Pressure (historical average)
+   - ENSO Index (scenario-based)
+
+2. **Stage 2:** Apply trained SVR model
+   - Use forecasted features → Predict rainfall
+
+### Climate Scenarios
+- **Neutral:** ONI Index ≈ 0 (normal conditions)
+- **El Niño:** ONI Index > +0.5 (warmer, drier)
+- **La Niña:** ONI Index < -0.5 (cooler, wetter)
+
+## 📁 Project Structure
+
+```
+project/
+├── streamlit_rainfall_app.py          # Main web application
+├── rainfall_forecast_module.py        # Forecasting engine
+├── rainfall_prediction_svr_with_hourly.py  # Core ML model
+├── requirements.txt                   # Python dependencies
+├── README.md                         # This file
+├── START_DYNAMIC_APP.bat             # Windows launcher
+├── start_dynamic_app.sh              # Linux/Mac launcher
+├── daily_data_combined_2020_to_2023.csv  # Historical data
+└── cities.csv                        # City coordinates
+```
+
+## 📈 Example Use Cases
+
+### 1. Agricultural Planning
+Check rainfall forecasts for planting season to select appropriate crops.
+
+### 2. Water Resource Management
+Predict dry season rainfall to plan reservoir levels.
+
+### 3. Flood Risk Assessment
+Evaluate La Niña scenario during monsoon season for flood preparedness.
+
+### 4. Infrastructure Planning
+Design stormwater systems based on maximum rainfall across all scenarios.
+
+## ⚠️ Important Notes
+
+### Forecast Limitations
+- Forecasts are **projections**, not exact predictions
+- Uncertainty **increases** with time horizon
+- Based on **2020-2023 patterns** (may not hold if climate shifts)
+- **Scenario-based** (actual ENSO phase unknown)
+
+### Best Practices
+- Use forecast **ranges** (compare all 3 scenarios)
+- Update forecasts **annually** with new data
+- Combine with **expert knowledge**
+- Plan for **multiple scenarios**
+
+## 🔧 Dependencies
+
+Core libraries:
+- `streamlit` - Web application framework
+- `pandas` - Data manipulation
+- `numpy` - Numerical computing
+- `scikit-learn` - Machine learning
+- `plotly` - Interactive visualizations
+
+See `requirements.txt` for complete list.
+
+## 📝 Data Requirements
+
+### Input Data Format
+
+**Daily Weather Data:**
+- Columns: `city_name`, `datetime`, `temperature_2m_mean`, `precipitation_sum`
+- Optional: `relative_humidity_2m`, `pressure_msl`
+
+**Cities Data:**
+- Columns: `city_name`, `latitude`, `longitude`
+
+## 🎓 Citation
+
+If you use this system in your research, please cite:
+
+```
+Philippines Rainfall Prediction System (2024)
+Support Vector Regression with Climate Scenarios
+Historical Analysis: 2020-2023 | Forecasts: 2024-2030
+```
+
+## 📞 Support
+
+For questions or issues:
+1. Check the in-app help text
+2. Review this README
+3. Examine the code comments
+
+## 🚀 Quick Commands
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the app
+streamlit run streamlit_rainfall_app.py
+
+# Stop the app
+# Press Ctrl+C in the terminal
+```
+
+## 🎉 Summary
+
+**What You Get:**
+- ✅ Historical analysis tool (2020-2023)
+- ✅ Future forecasting system (2024-2030)
+- ✅ Three climate scenarios
+- ✅ Interactive web interface
+- ✅ All 141 Philippine cities
+- ✅ Monthly predictions
+- ✅ Easy to use
+
+**Perfect For:**
+- Agricultural planning
+- Water resource management
+- Climate research
+- Policy making
+- Infrastructure planning
 
 ---
 
-## 🔮 Future Enhancements
+**Ready to explore? Run the app now!** 🚀
 
-Potential improvements for future iterations:
-
-1. **Additional Features**
-   - Wind patterns and direction
-   - Sea surface temperatures
-   - Topographic elevation
-
-2. **Advanced Models**
-   - Ensemble methods (Random Forest, Gradient Boosting)
-   - Deep learning (LSTM for temporal patterns)
-   - Hybrid SVR-Neural Network models
-
-3. **Real-Time Predictions**
-   - API integration for live weather data
-   - Automated monthly forecasting
-   - Web dashboard for visualization
-
-4. **Higher Resolution**
-   - Hourly rainfall predictions
-   - Sub-regional analysis
-   - Typhoon season modeling
-
----
-
-**Last Updated**: December 2024
-
-For questions or issues, please refer to the project documentation or contact the course instructor.
-
+```bash
+streamlit run streamlit_rainfall_app.py
+```
