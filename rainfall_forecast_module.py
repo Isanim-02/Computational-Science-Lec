@@ -226,7 +226,7 @@ class RainfallForecaster:
     
     def predict_rainfall(self, forecast_df):
         """
-        Use trained SVR model to predict rainfall for forecasted features
+        Use trained model to predict rainfall for forecasted features
         
         Parameters:
         -----------
@@ -237,14 +237,24 @@ class RainfallForecaster:
         --------
         DataFrame with rainfall predictions added
         """
+        # Add cyclical encoding for months if needed
+        if 'month_sin' not in forecast_df.columns or 'month_cos' not in forecast_df.columns:
+            forecast_df['month_sin'] = np.sin(2 * np.pi * forecast_df['month'] / 12)
+            forecast_df['month_cos'] = np.cos(2 * np.pi * forecast_df['month'] / 12)
+        
         # Prepare features in same order as training
         X_forecast = forecast_df[self.feature_columns].values
         
-        # Scale features
-        X_forecast_scaled = self.scaler.transform(X_forecast)
+        # Predict rainfall (XGBoost uses raw, SVR uses scaled)
+        model_name = str(type(self.trained_model).__name__)
+        if 'XGB' in model_name:
+            predictions = self.trained_model.predict(X_forecast)
+        else:
+            X_forecast_scaled = self.scaler.transform(X_forecast)
+            predictions = self.trained_model.predict(X_forecast_scaled)
         
-        # Predict rainfall
-        predictions = self.trained_model.predict(X_forecast_scaled)
+        # Clip predictions to minimum of 0 (no negative rainfall)
+        predictions = np.maximum(predictions, 0)
         
         # Add predictions to dataframe
         forecast_df['predicted_rainfall'] = predictions
@@ -347,4 +357,5 @@ def example_usage():
 
 if __name__ == "__main__":
     example_usage()
+
 

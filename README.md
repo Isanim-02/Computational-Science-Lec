@@ -31,8 +31,9 @@ A comprehensive rainfall prediction and forecasting system for the Philippines u
 
 - Python 3.8 or higher
 - Required data files:
-  - `daily_data_combined_2020_to_2023.csv`
-  - `cities.csv`
+  - `daily_data_combined_2020_to_2023.csv` (included)
+  - `cities.csv` (included)
+  - `hourly_data_combined_2020_to_2023.csv` (NOT included - too large for GitHub, see DATA_SETUP.md)
 
 ### Installation
 

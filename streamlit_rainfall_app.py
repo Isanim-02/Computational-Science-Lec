@@ -1,16 +1,11 @@
-"""
-Dynamic Philippines Rainfall Prediction Web App
-Built with Streamlit - Interactive month/year selector with real-time predictions
-INCLUDES: Historical Analysis (2020-2023) + Future Forecasts (2024-2030)
 
-Run with: streamlit run streamlit_rainfall_app.py
-"""
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+from xgboost import XGBRegressor
 from sklearn.svm import SVR
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
@@ -52,10 +47,44 @@ def load_and_preprocess_data():
     """
     Load and preprocess all data (cached for performance)
     """
-    with st.spinner("🔄 Loading and preprocessing data... This will take a moment..."):
+    with st.spinner("🔄 Loading and preprocessing data..."):
         # Load datasets
         df_cities = pd.read_csv('cities.csv')
         df_daily = pd.read_csv('daily_data_combined_2020_to_2023.csv')
+        
+        # Try to load hourly data for REAL humidity and pressure
+        has_hourly_data = False
+        try:
+            st.info("📊 Loading hourly data (this takes 2-3 minutes the first time)...")
+            df_hourly = pd.read_csv(
+                'hourly_data_combined_2020_to_2023.csv',
+                usecols=['city_name', 'datetime', 'relative_humidity_2m', 'pressure_msl']
+            )
+            
+            # Process hourly data
+            df_hourly['datetime'] = pd.to_datetime(df_hourly['datetime'])
+            df_hourly['date'] = df_hourly['datetime'].dt.date
+            
+            # Aggregate to daily
+            hourly_daily = df_hourly.groupby(['city_name', 'date']).agg({
+                'relative_humidity_2m': 'mean',
+                'pressure_msl': 'mean'
+            }).reset_index()
+            
+            hourly_daily.rename(columns={
+                'relative_humidity_2m': 'humidity',
+                'pressure_msl': 'air_pressure'
+            }, inplace=True)
+            
+            has_hourly_data = True
+            st.success("✅ Loaded real humidity and pressure data!")
+            
+        except FileNotFoundError:
+            st.warning("⚠️ Hourly data not found - using estimated values (lower accuracy)")
+            hourly_daily = None
+        except Exception as e:
+            st.warning(f"⚠️ Could not load hourly data: {str(e)} - using estimated values")
+            hourly_daily = None
         
         # Process daily data
         df_daily['datetime'] = pd.to_datetime(df_daily['datetime'])
@@ -63,19 +92,26 @@ def load_and_preprocess_data():
         df_daily['year'] = df_daily['datetime'].dt.year
         df_daily['month'] = df_daily['datetime'].dt.month
         
-        # Check if we have humidity and pressure columns in daily data
-        if 'relative_humidity_2m' in df_daily.columns:
-            df_daily['humidity'] = df_daily['relative_humidity_2m']
-        elif 'humidity' not in df_daily.columns:
-            # Create proxy humidity from temperature (inverse relationship)
-            df_daily['humidity'] = 100 - (df_daily['temperature_2m_mean'] - 20) * 2
-            df_daily['humidity'] = df_daily['humidity'].clip(0, 100)
+        # Merge hourly data if available
+        if has_hourly_data and hourly_daily is not None:
+            df_daily = df_daily.merge(
+                hourly_daily[['city_name', 'date', 'humidity', 'air_pressure']],
+                on=['city_name', 'date'],
+                how='left'
+            )
         
-        if 'pressure_msl' in df_daily.columns:
-            df_daily['air_pressure'] = df_daily['pressure_msl']
-        elif 'air_pressure' not in df_daily.columns:
-            # Standard sea level pressure with small variations
-            df_daily['air_pressure'] = 1013.25
+        # Fill missing with estimates if hourly data not available or incomplete
+        if 'humidity' not in df_daily.columns or df_daily['humidity'].isna().any():
+            if 'humidity' not in df_daily.columns:
+                df_daily['humidity'] = 75.0  # Philippines average
+            else:
+                df_daily['humidity'] = df_daily['humidity'].fillna(75.0)
+        
+        if 'air_pressure' not in df_daily.columns or df_daily['air_pressure'].isna().any():
+            if 'air_pressure' not in df_daily.columns:
+                df_daily['air_pressure'] = 1011.0  # Tropical average
+            else:
+                df_daily['air_pressure'] = df_daily['air_pressure'].fillna(1011.0)
         
         # Aggregate to monthly
         agg_dict = {
@@ -125,22 +161,23 @@ def load_and_preprocess_data():
         df_monthly['el_nino'] = (df_monthly['oni_index'] > 0.5).astype(int)
         df_monthly['la_nina'] = (df_monthly['oni_index'] < -0.5).astype(int)
         
-        # Fill missing humidity and pressure with reasonable defaults
-        if 'humidity' in df_monthly.columns:
-            df_monthly['humidity'] = df_monthly['humidity'].fillna(df_monthly['humidity'].mean())
-        else:
-            df_monthly['humidity'] = 70.0  # Default humidity
-            
-        if 'air_pressure' in df_monthly.columns:
-            df_monthly['air_pressure'] = df_monthly['air_pressure'].fillna(1013.25)
-        else:
-            df_monthly['air_pressure'] = 1013.25  # Standard sea level pressure
+        rows_before = len(df_monthly)
         
-        # Fill temperature with mean if any missing
-        df_monthly['temperature'] = df_monthly['temperature'].fillna(df_monthly['temperature'].mean())
+        # STRICT DATA QUALITY: Drop incomplete rows
+        df_monthly = df_monthly.dropna()
         
-        # Only drop rows with missing rainfall (target variable) or coordinates
-        df_monthly = df_monthly.dropna(subset=['monthly_rainfall', 'latitude', 'longitude'])
+        # Only keep cities with complete 48 months (4 years * 12 months)
+        city_month_counts = df_monthly.groupby('city_name').size()
+        complete_cities = city_month_counts[city_month_counts == 48].index
+        df_monthly = df_monthly[df_monthly['city_name'].isin(complete_cities)]
+        
+        rows_after = len(df_monthly)
+        cities_count = df_monthly['city_name'].nunique()
+        
+        # Store metadata
+        df_monthly.attrs['has_hourly_data'] = has_hourly_data
+        df_monthly.attrs['rows_dropped'] = rows_before - rows_after
+        df_monthly.attrs['cities_count'] = cities_count
         
         return df_monthly
 
@@ -148,35 +185,67 @@ def load_and_preprocess_data():
 @st.cache_resource
 def train_models(df_monthly):
     """
-    Train all three SVR models (cached to avoid retraining)
+    Train all three models (cached to avoid retraining)
+    - XGBoost: Best performance (RMSE: 69.96mm, R²: 0.78)
+    - RBF: SVR with RBF kernel (RMSE: 101mm, R²: 0.55)
+    - Polynomial: SVR with polynomial kernel (RMSE: 108mm, R²: 0.49)
+    Uses cyclical time encoding for better seasonality capture
     """
-    with st.spinner("🤖 Training SVR models..."):
+    with st.spinner("🤖 Training XGBoost & SVR models..."):
+        # Add cyclical time encoding for months (better than linear)
+        df_monthly = df_monthly.copy()
+        df_monthly['month_sin'] = np.sin(2 * np.pi * df_monthly['month'] / 12)
+        df_monthly['month_cos'] = np.cos(2 * np.pi * df_monthly['month'] / 12)
+        
         feature_columns = [
-            'month', 'latitude', 'longitude', 'temperature',
+            'month_sin', 'month_cos', 'latitude', 'longitude', 'temperature',
             'humidity', 'air_pressure', 'oni_index', 'el_nino', 'la_nina'
         ]
         
         X = df_monthly[feature_columns].values
         y = df_monthly['monthly_rainfall'].values
         
+        # Scaler for SVR models
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
         
+        # Three models: XGBoost (best) + SVR variants
         models = {
-            'RBF': SVR(kernel='rbf', C=100, gamma='scale', epsilon=0.1),
-            'Polynomial': SVR(kernel='poly', C=100, degree=3, gamma='scale', epsilon=0.1),
-            'Sigmoid': SVR(kernel='sigmoid', C=100, gamma='scale', epsilon=0.1)
+            'XGBoost': XGBRegressor(
+                n_estimators=200,
+                learning_rate=0.1,
+                max_depth=6,
+                min_child_weight=3,
+                random_state=42,
+                n_jobs=-1
+            ),
+            'RBF': SVR(
+                kernel='rbf',
+                C=100,
+                gamma='scale',
+                epsilon=0.1
+            ),
+            'Polynomial': SVR(
+                kernel='poly',
+                C=100,
+                degree=3,
+                gamma='scale',
+                epsilon=0.1
+            )
         }
         
-        # Train all models
+        # Train models (XGBoost with raw data, SVR with scaled data)
         for name, model in models.items():
-            model.fit(X_scaled, y)
+            if 'XGBoost' in name:
+                model.fit(X, y)  # Tree-based doesn't need scaling
+            else:
+                model.fit(X_scaled, y)  # SVR needs scaling
         
         return models, scaler, feature_columns
 
 
 def get_predictions_for_month_year(df_monthly, models, scaler, feature_columns, 
-                                   selected_year, selected_month, kernel_name):
+                                   selected_year, selected_month, model_name):
     """
     Filter data and compute predictions for specific month/year
     """
@@ -189,13 +258,24 @@ def get_predictions_for_month_year(df_monthly, models, scaler, feature_columns,
     if len(df_filtered) == 0:
         return None, None, None, None
     
+    # Add cyclical encoding if not already present
+    if 'month_sin' not in df_filtered.columns:
+        df_filtered['month_sin'] = np.sin(2 * np.pi * df_filtered['month'] / 12)
+        df_filtered['month_cos'] = np.cos(2 * np.pi * df_filtered['month'] / 12)
+    
     # Prepare features
     X_filtered = df_filtered[feature_columns].values
-    X_scaled = scaler.transform(X_filtered)
     
-    # Get predictions
-    model = models[kernel_name]
-    predictions = model.predict(X_scaled)
+    # Get predictions (XGBoost uses raw data, SVR uses scaled data)
+    model = models[model_name]
+    if 'XGBoost' in model_name:
+        predictions = model.predict(X_filtered)
+    else:
+        X_filtered_scaled = scaler.transform(X_filtered)
+        predictions = model.predict(X_filtered_scaled)
+    
+    # Clip predictions to minimum of 0 (no negative rainfall)
+    predictions = np.maximum(predictions, 0)
     
     # Get actual values if available
     actual_values = df_filtered['monthly_rainfall'].values
@@ -324,9 +404,9 @@ def create_comparison_chart(actual_values, predictions, city_names):
 
 
 @st.cache_data
-def generate_forecasts(_df_monthly, _model, _scaler, _feature_columns, future_years):
-    """Generate forecast scenarios (cached)"""
-    with st.spinner(f"🔮 Generating forecasts for {future_years[0]}-{future_years[-1]}..."):
+def generate_forecasts(_df_monthly, _model, _scaler, _feature_columns, future_years, model_name):
+    """Generate forecast scenarios (cached by model)"""
+    with st.spinner(f"🔮 Generating forecasts for {future_years[0]}-{future_years[-1]} ({model_name})..."):
         forecaster = RainfallForecaster(_df_monthly, _model, _scaler, _feature_columns)
         scenarios = forecaster.generate_all_scenarios(future_years)
         return scenarios
@@ -423,11 +503,11 @@ def main():
     
     # Kernel selection
     st.sidebar.markdown("---")
-    kernel_name = st.sidebar.radio(
-        "🔬 Select SVR Kernel",
-        options=['RBF', 'Polynomial', 'Sigmoid'],
+    model_name = st.sidebar.radio(
+        "🚀 ML Algorithm",
+        options=['XGBoost', 'RBF', 'Polynomial'],
         index=0,
-        help="Choose the kernel function for the Support Vector Regression model"
+        help="XGBoost: Best accuracy (RMSE: 69.96mm, R²: 0.78)\nRBF: SVR with RBF kernel (RMSE: 101mm, R²: 0.55)\nPolynomial: SVR with polynomial kernel (RMSE: 108mm, R²: 0.49)"
     )
     
     # Visualization type
@@ -454,7 +534,7 @@ def main():
         st.sidebar.info("""
         **Historical Mode:**
         1. Select year and month
-        2. Choose SVR kernel
+        2. Choose ML algorithm
         3. Pick visualization type
         4. Explore the predictions!
         
@@ -466,9 +546,9 @@ def main():
         # FORECAST MODE - Generate predictions for future
         with st.spinner(f"🔮 Generating forecast for {month_names[selected_month]} {selected_year}..."):
             # Generate forecasts for selected year
-            model = models[kernel_name]
+            model = models[model_name]
             years_to_forecast = list(range(2024, selected_year + 1))
-            scenarios = generate_forecasts(df_monthly, model, scaler, feature_columns, years_to_forecast)
+            scenarios = generate_forecasts(df_monthly, model, scaler, feature_columns, years_to_forecast, model_name)
             
             # Get forecast for selected month/year/scenario
             forecast_df = scenarios[scenario]
@@ -485,7 +565,7 @@ def main():
         with st.spinner(f"🔮 Computing predictions for {month_names[selected_month]} {selected_year}..."):
             result = get_predictions_for_month_year(
                 df_monthly, models, scaler, feature_columns,
-                selected_year, selected_month, kernel_name
+                selected_year, selected_month, model_name
             )
             df_filtered, predictions, actual_values, rmse = result
     
@@ -494,38 +574,42 @@ def main():
         return
     
     # Display metrics
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.metric(
-            label="📍 Cities",
-            value=len(df_filtered),
-            help="Number of cities with data"
-        )
-    
-    with col2:
-        if is_forecast_mode:
+    if is_forecast_mode:
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                label="📍 Cities",
+                value=len(df_filtered),
+                help="Number of cities with data"
+            )
+        
+        with col2:
             st.metric(
                 label="🔮 Scenario",
                 value=scenario.replace('_', ' ').title(),
                 help="Climate scenario for forecast"
             )
-        else:
-            st.metric(
-                label="🎯 RMSE",
-                value=f"{rmse:.2f} mm",
-                help="Root Mean Square Error"
-            )
-    
-    with col3:
-        if is_forecast_mode:
+        
+        with col3:
             rainfall_range = f"{predictions.min():.0f}-{predictions.max():.0f}"
             st.metric(
                 label="📊 Range",
                 value=f"{rainfall_range} mm",
                 help="Min-Max forecast range"
             )
-        else:
+    else:
+        # Historical mode - only show Cities and Avg Rainfall (no RMSE)
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.metric(
+                label="📍 Cities",
+                value=len(df_filtered),
+                help="Number of cities with data"
+            )
+        
+        with col2:
             avg_rainfall = predictions.mean()
             st.metric(
                 label="🌧️ Avg Rainfall",
@@ -542,7 +626,7 @@ def main():
         st.info(f"📜 **HISTORICAL MODE** - Analyzing actual data for {month_names[selected_month]} {selected_year}")
     
     # Main visualization
-    map_title = f"🗺️ {month_names[selected_month]} {selected_year} - {kernel_name} Kernel"
+    map_title = f"🗺️ {month_names[selected_month]} {selected_year} - {model_name}"
     if is_forecast_mode:
         map_title += f" ({scenario.replace('_', ' ').title()})"
     st.subheader(map_title)
@@ -702,18 +786,31 @@ def main():
     # Data table
     st.markdown("---")
     with st.expander("📋 View Detailed Data Table"):
-        display_df = df_filtered[['city_name', 'latitude', 'longitude', 
-                                   'temperature', 'humidity', 'air_pressure', 
-                                   'monthly_rainfall']].copy()
-        display_df['predicted_rainfall'] = predictions
-        display_df['error'] = display_df['monthly_rainfall'] - predictions
-        display_df['abs_error'] = np.abs(display_df['error'])
-        
-        st.dataframe(
-            display_df.sort_values('abs_error', ascending=False),
-            use_container_width=True,
-            hide_index=True
-        )
+        if is_forecast_mode:
+            # Forecast mode - show forecast only
+            display_df = df_filtered[['city_name', 'latitude', 'longitude', 
+                                       'temperature', 'humidity', 'air_pressure']].copy()
+            display_df['forecast_rainfall'] = predictions
+            
+            st.dataframe(
+                display_df.sort_values('forecast_rainfall', ascending=False),
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            # Historical mode - show actual vs predicted
+            display_df = df_filtered[['city_name', 'latitude', 'longitude', 
+                                       'temperature', 'humidity', 'air_pressure', 
+                                       'monthly_rainfall']].copy()
+            display_df['predicted_rainfall'] = predictions
+            display_df['error'] = display_df['monthly_rainfall'] - predictions
+            display_df['abs_error'] = np.abs(display_df['error'])
+            
+            st.dataframe(
+                display_df.sort_values('abs_error', ascending=False),
+                use_container_width=True,
+                hide_index=True
+            )
     
     # Footer
     st.markdown("---")
