@@ -136,7 +136,9 @@ class PhilippinesRainfallPredictorXGBoost:
             2020: [-0.5, -0.4, -0.1, 0.2, 0.1, -0.2, -0.5, -0.9, -1.3, -1.5, -1.6, -1.4],
             2021: [-1.2, -0.9, -0.7, -0.5, -0.3, -0.4, -0.5, -0.7, -0.9, -1.1, -1.2, -1.1],
             2022: [-1.0, -0.9, -0.7, -0.5, -0.2, 0.1, 0.3, 0.0, -0.2, -0.6, -0.8, -0.9],
-            2023: [-0.6, -0.3, 0.1, 0.5, 0.8, 1.0, 1.3, 1.6, 1.8, 2.0, 2.1, 2.0]
+            2023: [-0.6, -0.3, 0.1, 0.5, 0.8, 1.0, 1.3, 1.6, 1.8, 2.0, 2.1, 2.0],
+            2024: [1.8, 1.5, 1.1, 0.7, 0.4, 0.2, 0.0, -0.1, -0.2, -0.3, -0.4, -0.5],
+            2025: [-0.6, -0.4, -0.2, -0.1, -0.1, -0.1, -0.2, -0.3, -0.4, -0.6, -0.6, -0.6] # the last two values are not yet released.
         }
         
         self.df_monthly['oni_index'] = self.df_monthly.apply(
@@ -196,7 +198,7 @@ class PhilippinesRainfallPredictorXGBoost:
             )
         }
         
-        # K-Fold CV
+        # Time-Series CV 
         kfold = KFold(n_splits=5, shuffle=True, random_state=42)
         results = {}
         
@@ -326,9 +328,9 @@ def main():
     
     # Initialize predictor
     predictor = PhilippinesRainfallPredictorXGBoost(
-        daily_data_path='daily_data_combined_2020_to_2023.csv',
-        hourly_data_path='hourly_data_combined_2020_to_2023.csv',
-        cities_path='cities.csv'
+        daily_data_path='datasets/daily_data_combined_2020_to_2023.csv',
+        hourly_data_path='datasets/hourly_data_combined_2020_to_2023.csv',
+        cities_path='datasets/cities.csv'
     )
     
     # Load and preprocess
