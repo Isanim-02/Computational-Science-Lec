@@ -199,7 +199,8 @@ class PhilippinesRainfallPredictorXGBoost:
         }
         
         # Time-Series CV 
-        kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+        years = self.df_monthly['year'].values
+        unique_years = np.unique(years)
         results = {}
         
         for model_name, model in models_to_test.items():
@@ -210,7 +211,12 @@ class PhilippinesRainfallPredictorXGBoost:
             r2_scores = []
             mae_scores = []
             
-            for fold, (train_idx, test_idx) in enumerate(kfold.split(X), 1):
+            for i in range(len(unique_years) - 1):
+                # Train on all years <= unique_years[i]
+                train_idx = np.where(years <= unique_years[i])[0]
+                # Validate on next year
+                test_idx = np.where(years == unique_years[i+1])[0]
+                
                 X_train, X_test = X[train_idx], X[test_idx]
                 y_train, y_test = y[train_idx], y[test_idx]
                 
@@ -228,9 +234,10 @@ class PhilippinesRainfallPredictorXGBoost:
                 rmse_scores.append(rmse)
                 r2_scores.append(r2)
                 mae_scores.append(mae)
-                
-                print(f"  Fold {fold}: RMSE = {rmse:>7.2f} mm | R² = {r2:.4f} | MAE = {mae:>6.2f} mm")
-            
+
+                print(f"Fold {i+1}: Train <= {unique_years[i]}, Test = {unique_years[i+1]}")                
+                print(f"   RMSE = {rmse:>7.4f} mm | R² = {r2:.4f} | MAE = {mae:>6.4f} mm")
+
             # Store results
             results[model_name] = {
                 'rmse_mean': np.mean(rmse_scores),
@@ -328,8 +335,8 @@ def main():
     
     # Initialize predictor
     predictor = PhilippinesRainfallPredictorXGBoost(
-        daily_data_path='datasets/daily_data_combined_2020_to_2023.csv',
-        hourly_data_path='datasets/hourly_data_combined_2020_to_2023.csv',
+        daily_data_path='datasets/daily_data_2020_to_mar2025.csv',
+        hourly_data_path='datasets/hourly_data_2020_to_mar2025.csv',
         cities_path='datasets/cities.csv'
     )
     
