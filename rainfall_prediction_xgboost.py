@@ -20,6 +20,7 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
+import os
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -36,12 +37,14 @@ class PhilippinesRainfallPredictorXGBoost:
     30% more accurate than SVR!
     """
     
-    def __init__(self, daily_data_path, hourly_data_path, cities_path):
+    def __init__(self, daily_data_path, hourly_data_path, monthly_data_path, oni_data_path, cities_path):
         """
         Initialize the predictor with data paths
         """
         self.daily_data_path = daily_data_path
         self.hourly_data_path = hourly_data_path
+        self.monthly_data_path = monthly_data_path
+        self.oni_data_path = oni_data_path
         self.cities_path = cities_path
         self.df_monthly = None
         self.models = {}
@@ -53,6 +56,13 @@ class PhilippinesRainfallPredictorXGBoost:
         print("\n" + "="*70)
         print("LOADING DATA")
         print("="*70)
+
+        # Load monthly data, if available
+        if os.path.exists(self.monthly_data_path):
+            self.df_monthly = pd.read_csv(self.monthly_data_path)
+            self.df_monthly.rename(columns={'city_name': 'city'}, inplace=True)
+            print(f"Monthly records loaded: {len(self.df_monthly)}")
+            return
         
         # Load cities
         self.df_cities = pd.read_csv(self.cities_path)
@@ -75,52 +85,56 @@ class PhilippinesRainfallPredictorXGBoost:
         
     def preprocess_data(self):
         """Aggregate and preprocess data"""
-        print("\n" + "="*70)
-        print("PREPROCESSING DATA")
-        print("="*70)
-        
-        # Convert dates
-        self.df_daily['date'] = pd.to_datetime(self.df_daily['date'])
-        self.df_hourly['date'] = pd.to_datetime(self.df_hourly['date'])
-        
-        # Aggregate hourly to daily
-        print("Aggregating hourly to daily...")
-        hourly_daily = self.df_hourly.groupby(['city', 'date']).agg({
-            'humidity_2m': 'mean',
-            'surface_pressure': 'mean'
-        }).reset_index()
-        
-        # Merge with daily data
-        df_merged = self.df_daily.merge(hourly_daily, on=['city', 'date'], how='left')
-        
-        # Aggregate to monthly
-        print("Aggregating daily to monthly...")
-        df_merged['year'] = df_merged['date'].dt.year
-        df_merged['month'] = df_merged['date'].dt.month
-        
-        self.df_monthly = df_merged.groupby(['city', 'year', 'month']).agg({
-            'temperature_2m_mean': 'mean',
-            'humidity_2m': 'mean',
-            'surface_pressure': 'mean',
-            'precipitation_sum': 'sum'
-        }).reset_index()
-        
-        self.df_monthly.rename(columns={
-            'temperature_2m_mean': 'temperature',
-            'humidity_2m': 'humidity',
-            'surface_pressure': 'air_pressure',
-            'precipitation_sum': 'monthly_rainfall'
-        }, inplace=True)
-        
-        # Merge with coordinates
-        self.df_monthly = self.df_monthly.merge(
-            self.df_cities[['city', 'latitude', 'longitude']], 
-            on='city', 
-            how='left'
-        )
-        
-        # Add ENSO indices
-        self.add_enso_indices()
+
+        if self.df_monthly is None:
+            print("Aggregating data to monthly format...")
+
+            print("\n" + "="*70)
+            print("PREPROCESSING DATA")
+            print("="*70)
+            
+            # Convert dates
+            self.df_daily['date'] = pd.to_datetime(self.df_daily['date'])
+            self.df_hourly['date'] = pd.to_datetime(self.df_hourly['date'])
+            
+            # Aggregate hourly to daily
+            print("Aggregating hourly to daily...")
+            hourly_daily = self.df_hourly.groupby(['city', 'date']).agg({
+                'humidity_2m': 'mean',
+                'surface_pressure': 'mean'
+            }).reset_index()
+            
+            # Merge with daily data
+            df_merged = self.df_daily.merge(hourly_daily, on=['city', 'date'], how='left')
+            
+            # Aggregate to monthly
+            print("Aggregating daily to monthly...")
+            df_merged['year'] = df_merged['date'].dt.year
+            df_merged['month'] = df_merged['date'].dt.month
+            
+            self.df_monthly = df_merged.groupby(['city', 'year', 'month']).agg({
+                'temperature_2m_mean': 'mean',
+                'humidity_2m': 'mean',
+                'surface_pressure': 'mean',
+                'precipitation_sum': 'sum'
+            }).reset_index()
+            
+            self.df_monthly.rename(columns={
+                'temperature_2m_mean': 'temperature',
+                'humidity_2m': 'humidity',
+                'surface_pressure': 'air_pressure',
+                'precipitation_sum': 'monthly_rainfall'
+            }, inplace=True)
+            
+            # Merge with coordinates
+            self.df_monthly = self.df_monthly.merge(
+                self.df_cities[['city', 'latitude', 'longitude']], 
+                on='city', 
+                how='left'
+            )
+            
+            # Add ENSO indices
+            self.add_enso_indices()
         
         # Drop missing values
         initial_count = len(self.df_monthly)
@@ -137,14 +151,12 @@ class PhilippinesRainfallPredictorXGBoost:
         
     def add_enso_indices(self):
         """Add ENSO (El Niño Southern Oscillation) indices"""
-        oni_data = {
-            2020: [-0.5, -0.4, -0.1, 0.2, 0.1, -0.2, -0.5, -0.9, -1.3, -1.5, -1.6, -1.4],
-            2021: [-1.2, -0.9, -0.7, -0.5, -0.3, -0.4, -0.5, -0.7, -0.9, -1.1, -1.2, -1.1],
-            2022: [-1.0, -0.9, -0.7, -0.5, -0.2, 0.1, 0.3, 0.0, -0.2, -0.6, -0.8, -0.9],
-            2023: [-0.6, -0.3, 0.1, 0.5, 0.8, 1.0, 1.3, 1.6, 1.8, 2.0, 2.1, 2.0],
-            2024: [1.8, 1.5, 1.1, 0.7, 0.4, 0.2, 0.0, -0.1, -0.2, -0.3, -0.4, -0.5],
-            2025: [-0.6, -0.4, -0.2, -0.1, -0.1, -0.1, -0.2, -0.3, -0.4, -0.6, -0.6, -0.6] # the last two values are not yet released.
-        }
+
+        if self.df_monthly is not None:
+            print("ENSO indices already added.")
+            return
+
+        oni_data = pd.read_csv(self.oni_data_path, index_col='year').to_dict(orient='index')
         
         self.df_monthly['oni_index'] = self.df_monthly.apply(
             lambda row: oni_data.get(row['year'], [0]*12)[row['month']-1] 
@@ -340,8 +352,9 @@ def main():
     
     # Initialize predictor
     predictor = PhilippinesRainfallPredictorXGBoost(
-        daily_data_path='datasets/daily_data_2020_to_mar2025.csv',
-        hourly_data_path='datasets/hourly_data_2020_to_mar2025.csv',
+        daily_data_path='datasets/daily/consolidated.csv',
+        hourly_data_path='datasets/hourly/consolidated.csv',
+        monthly_data_path='datasets/monthly.csv',
         cities_path='datasets/cities.csv'
     )
     
