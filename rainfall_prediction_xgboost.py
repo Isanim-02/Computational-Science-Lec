@@ -27,7 +27,12 @@ warnings.filterwarnings('ignore')
 
 # SETTINGS
 NUM_MONTHS = 63  # Total months from Jan 2020 to Mar 2025
-
+month_to_season = {
+    1: 'DJF', 2: 'DJF', 3: 'JFM',
+    4: 'FMA', 5: 'FMA', 6: 'AMJ',
+    7: 'MJJ', 8: 'JJA', 9: 'JAS',
+    10: 'ASO', 11: 'SON', 12: 'NDJ'
+}
 
 
 # CODE
@@ -148,21 +153,24 @@ class PhilippinesRainfallPredictorXGBoost:
         print(f"Monthly records: {len(self.df_monthly)}")
         print(f"Cities with complete data: {len(complete_cities)}")
         print(f"Features: {len(self.df_monthly.columns) - 4}")
-        
+    
+    # Add ENSO indices
     def add_enso_indices(self):
         """Add ENSO (El Niño Southern Oscillation) indices"""
-
         if self.df_monthly is not None:
             print("ENSO indices already added.")
             return
 
-        oni_data = pd.read_csv(self.oni_data_path, index_col='year').to_dict(orient='index')
+        oni_data = pd.read_csv(self.oni_data_path, index_col='year')
+
+        def get_oni(row):
+            if row['year'] in oni_data.index:
+                season_col = month_to_season.get(row['month'])
+                return oni_data.at[row['year'], season_col]
+            else:
+                return 0
         
-        self.df_monthly['oni_index'] = self.df_monthly.apply(
-            lambda row: oni_data.get(row['year'], [0]*12)[row['month']-1] 
-            if row['year'] in oni_data else 0, 
-            axis=1
-        )
+        self.df_monthly['oni_index'] = self.df_monthly.apply(get_oni, axis=1)
         self.df_monthly['el_nino'] = (self.df_monthly['oni_index'] > 0.5).astype(int)
         self.df_monthly['la_nina'] = (self.df_monthly['oni_index'] < -0.5).astype(int)
         
