@@ -16,6 +16,8 @@ if __name__ == "__main__":
 
         # Save merged CSV
         df_all.to_csv("datasets/hourly_data_2020_to_mar2025.csv", index=False)
+
+        print("Merged file saved as 'datasets/hourly_data_2020_to_mar2025.csv'")
     else:
         print("WARNING: Columns do not match!")
         print("Columns in 2020-2023:", cols_2020_2023)

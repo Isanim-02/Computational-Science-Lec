@@ -15,7 +15,6 @@ import pandas as pd
 import numpy as np
 from xgboost import XGBRegressor
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import matplotlib.pyplot as plt
@@ -25,6 +24,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
+# SETTINGS
+NUM_MONTHS = 63  # Total months from Jan 2020 to Mar 2025
+
+
+
+# CODE
 class PhilippinesRainfallPredictorXGBoost:
     """
     Enhanced rainfall prediction system using XGBoost
@@ -121,9 +126,9 @@ class PhilippinesRainfallPredictorXGBoost:
         initial_count = len(self.df_monthly)
         self.df_monthly = self.df_monthly.dropna()
         
-        # Keep only cities with complete 48 months
+        # Keep only cities with complete months
         city_counts = self.df_monthly.groupby('city').size()
-        complete_cities = city_counts[city_counts == 48].index
+        complete_cities = city_counts[city_counts == NUM_MONTHS].index
         self.df_monthly = self.df_monthly[self.df_monthly['city'].isin(complete_cities)]
         
         print(f"Monthly records: {len(self.df_monthly)}")
