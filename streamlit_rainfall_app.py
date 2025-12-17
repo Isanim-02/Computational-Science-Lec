@@ -50,14 +50,14 @@ def load_and_preprocess_data():
     with st.spinner("🔄 Loading and preprocessing data..."):
         # Load datasets
         df_cities = pd.read_csv('datasets/cities.csv')
-        df_daily = pd.read_csv('datasets/daily_data_combined_2020_to_2023.csv')
+        df_daily = pd.read_csv('datasets/daily/consolidated.csv')
         
         # Try to load hourly data for REAL humidity and pressure
         has_hourly_data = False
         try:
             st.info("📊 Loading hourly data (this takes 2-3 minutes the first time)...")
             df_hourly = pd.read_csv(
-                'datasets/hourly_data_combined_2020_to_2023.csv',
+                'datasets/hourly/consolidated.csv',
                 usecols=['city_name', 'datetime', 'relative_humidity_2m', 'pressure_msl']
             )
             

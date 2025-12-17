@@ -1,5 +1,7 @@
 # Large data files (too big for GitHub - over 100MB limit)
 datasets/hourly
+datasets/daily/2010_to_2019.csv
+datasets/daily/consolidated.csv
 
 # Python cache
 __pycache__/
