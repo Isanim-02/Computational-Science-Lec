@@ -11,9 +11,6 @@ Author: Data Science Project
 
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression
-from sklearn.svm import SVR
-from sklearn.preprocessing import StandardScaler
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -23,7 +20,7 @@ class RainfallForecaster:
     Forecasts rainfall for future years using historical patterns
     """
     
-    def __init__(self, historical_df, trained_model, scaler, feature_columns):
+    def __init__(self, historical_df, trained_model, feature_columns):
         """
         Initialize forecaster with historical data and trained model
         
@@ -40,7 +37,6 @@ class RainfallForecaster:
         """
         self.historical_df = historical_df
         self.trained_model = trained_model
-        self.scaler = scaler
         self.feature_columns = feature_columns
         
     def forecast_enso_scenarios(self, future_years):
@@ -71,13 +67,13 @@ class RainfallForecaster:
         
         return scenarios
     
-    def forecast_temperature(self, city_name, future_years, trend_adjustment=0.02):
+    def forecast_temperature(self, city, future_years, trend_adjustment=0.02):
         """
         Forecast temperature using historical average + linear trend
         
         Parameters:
         -----------
-        city_name : str
+        city : str
             City name
         future_years : list
             Years to forecast
@@ -88,7 +84,7 @@ class RainfallForecaster:
         --------
         dict : {(year, month): temperature}
         """
-        city_data = self.historical_df[self.historical_df['city_name'] == city_name]
+        city_data = self.historical_df[self.historical_df['city'] == city]
         
         if len(city_data) == 0:
             # Use overall average if city not found
@@ -115,12 +111,12 @@ class RainfallForecaster:
         
         return forecasts
     
-    def forecast_humidity(self, city_name, future_years, temperature_forecasts):
+    def forecast_humidity(self, city, future_years, temperature_forecasts):
         """
         Forecast humidity based on temperature relationship
         (Warmer temperatures → slightly lower relative humidity)
         """
-        city_data = self.historical_df[self.historical_df['city_name'] == city_name]
+        city_data = self.historical_df[self.historical_df['city'] == city]
         
         if len(city_data) == 0:
             city_data = self.historical_df
@@ -142,12 +138,12 @@ class RainfallForecaster:
         
         return forecasts
     
-    def forecast_pressure(self, city_name, future_years):
+    def forecast_pressure(self, city, future_years):
         """
         Forecast air pressure using historical monthly averages
         (Pressure is relatively stable, use historical mean)
         """
-        city_data = self.historical_df[self.historical_df['city_name'] == city_name]
+        city_data = self.historical_df[self.historical_df['city'] == city]
         
         if len(city_data) == 0:
             city_data = self.historical_df
@@ -183,13 +179,13 @@ class RainfallForecaster:
         all_enso = self.forecast_enso_scenarios(future_years)
         
         # Get unique cities
-        cities = self.historical_df['city_name'].unique()
+        cities = self.historical_df['city'].unique()
         
         forecast_rows = []
         
         for city in cities:
             # Get city coordinates
-            city_data = self.historical_df[self.historical_df['city_name'] == city].iloc[0]
+            city_data = self.historical_df[self.historical_df['city'] == city].iloc[0]
             lat = city_data['latitude']
             lon = city_data['longitude']
             
@@ -206,7 +202,7 @@ class RainfallForecaster:
                     oni_index = all_enso.get(scenario_key, {}).get(month, 0.0)
                     
                     row = {
-                        'city_name': city,
+                        'city': city,
                         'year': year,
                         'month': month,
                         'latitude': lat,
@@ -245,13 +241,8 @@ class RainfallForecaster:
         # Prepare features in same order as training
         X_forecast = forecast_df[self.feature_columns].values
         
-        # Predict rainfall (XGBoost uses raw, SVR uses scaled)
-        model_name = str(type(self.trained_model).__name__)
-        if 'XGB' in model_name:
-            predictions = self.trained_model.predict(X_forecast)
-        else:
-            X_forecast_scaled = self.scaler.transform(X_forecast)
-            predictions = self.trained_model.predict(X_forecast_scaled)
+        # Predict rainfall
+        predictions = self.trained_model.predict(X_forecast)
         
         # Clip predictions to minimum of 0 (no negative rainfall)
         predictions = np.maximum(predictions, 0)
@@ -284,7 +275,7 @@ class RainfallForecaster:
         
         return scenarios
     
-    def get_city_forecast(self, city_name, year, scenarios_dict):
+    def get_city_forecast(self, city, year, scenarios_dict):
         """
         Get forecast for specific city and year across all scenarios
         """
@@ -292,7 +283,7 @@ class RainfallForecaster:
         
         for scenario_name, forecast_df in scenarios_dict.items():
             city_year = forecast_df[
-                (forecast_df['city_name'] == city_name) & 
+                (forecast_df['city'] == city) & 
                 (forecast_df['year'] == year)
             ].copy()
             

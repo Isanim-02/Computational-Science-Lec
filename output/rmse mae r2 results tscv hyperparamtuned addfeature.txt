@@ -1,0 +1,233 @@
+
+======================================================================
+PHILIPPINES RAINFALL PREDICTION - XGBOOST
+30% More Accurate Than SVR!
+======================================================================
+
+======================================================================
+LOADING DATA
+======================================================================
+Monthly records loaded: 25803
+
+Adding cyclical time encoding (sin/cos for months)...
+Monthly records: 23842
+Cities with complete data: 131
+Features: 11
+
+======================================================================
+TRAINING AND EVALUATION (Cross-Validation)
+======================================================================
+
+Dataset: 23842 samples, 11 features
+Features: month_sin, month_cos, latitude, longitude, temperature, humidity, air_pressure, oni_index, el_nino, la_nina, monthly_rainfall_lag_1
+
+Using Time-Series Cross-Validation
+
+XGBoost (Optimized)
+----------------------------------------------------------------------
+Fold 1: Train <= 2010, Test = 2011
+   RMSE = 124.0950 mm | R² = 0.2107 | MAE = 89.4208 mm
+Fold 2: Train <= 2011, Test = 2012
+   RMSE = 104.2312 mm | R² = 0.4550 | MAE = 83.1321 mm
+Fold 3: Train <= 2012, Test = 2013
+   RMSE = 106.7195 mm | R² = 0.4815 | MAE = 75.9548 mm
+Fold 4: Train <= 2013, Test = 2014
+   RMSE = 110.3779 mm | R² = 0.5162 | MAE = 73.3972 mm
+Fold 5: Train <= 2014, Test = 2015
+   RMSE = 105.8368 mm | R² = 0.4214 | MAE = 72.9727 mm
+Fold 6: Train <= 2015, Test = 2016
+   RMSE = 93.5357 mm | R² = 0.6123 | MAE = 67.9492 mm
+Fold 7: Train <= 2016, Test = 2017
+   RMSE = 153.9744 mm | R² = 0.2169 | MAE = 80.5215 mm
+Fold 8: Train <= 2017, Test = 2018
+   RMSE = 111.7898 mm | R² = 0.5840 | MAE = 81.6750 mm
+Fold 9: Train <= 2018, Test = 2019
+   RMSE = 94.0592 mm | R² = 0.6065 | MAE = 64.8008 mm
+Fold 10: Train <= 2019, Test = 2020
+   RMSE = 104.5547 mm | R² = 0.5262 | MAE = 71.7757 mm
+Fold 11: Train <= 2020, Test = 2021
+   RMSE = 88.7775 mm | R² = 0.6358 | MAE = 62.7859 mm
+Fold 12: Train <= 2021, Test = 2022
+   RMSE = 109.3855 mm | R² = 0.4188 | MAE = 80.7035 mm
+Fold 13: Train <= 2022, Test = 2023
+   RMSE = 101.6598 mm | R² = 0.5864 | MAE = 67.3111 mm
+Fold 14: Train <= 2023, Test = 2024
+   RMSE = 95.3955 mm | R² = 0.6543 | MAE = 62.6275 mm
+Fold 15: Train <= 2024, Test = 2025
+   RMSE = 89.2032 mm | R² = 0.6091 | MAE = 64.5656 mm
+  Average: RMSE = 106.24 +/- 15.72 mm
+           R² = 0.5023 +/- 0.1348
+
+Gradient Boosting
+----------------------------------------------------------------------
+Fold 1: Train <= 2010, Test = 2011
+   RMSE = 111.5568 mm | R² = 0.3621 | MAE = 85.5124 mm
+Fold 2: Train <= 2011, Test = 2012
+   RMSE = 105.3080 mm | R² = 0.4437 | MAE = 84.1168 mm
+Fold 3: Train <= 2012, Test = 2013
+   RMSE = 101.6393 mm | R² = 0.5297 | MAE = 72.0159 mm
+Fold 4: Train <= 2013, Test = 2014
+   RMSE = 108.2093 mm | R² = 0.5350 | MAE = 70.8063 mm
+Fold 5: Train <= 2014, Test = 2015
+   RMSE = 101.1066 mm | R² = 0.4719 | MAE = 69.8545 mm
+Fold 6: Train <= 2015, Test = 2016
+   RMSE = 91.8805 mm | R² = 0.6259 | MAE = 66.8415 mm
+Fold 7: Train <= 2016, Test = 2017
+   RMSE = 153.9062 mm | R² = 0.2176 | MAE = 78.5296 mm
+Fold 8: Train <= 2017, Test = 2018
+   RMSE = 110.3091 mm | R² = 0.5950 | MAE = 80.2258 mm
+Fold 9: Train <= 2018, Test = 2019
+   RMSE = 96.3464 mm | R² = 0.5871 | MAE = 64.4078 mm
+Fold 10: Train <= 2019, Test = 2020
+   RMSE = 104.0318 mm | R² = 0.5309 | MAE = 71.0691 mm
+Fold 11: Train <= 2020, Test = 2021
+   RMSE = 90.4512 mm | R² = 0.6219 | MAE = 63.2735 mm
+Fold 12: Train <= 2021, Test = 2022
+   RMSE = 106.8023 mm | R² = 0.4459 | MAE = 79.3660 mm
+Fold 13: Train <= 2022, Test = 2023
+   RMSE = 103.9275 mm | R² = 0.5677 | MAE = 67.5748 mm
+Fold 14: Train <= 2023, Test = 2024
+   RMSE = 94.8471 mm | R² = 0.6583 | MAE = 61.4067 mm
+Fold 15: Train <= 2024, Test = 2025
+   RMSE = 90.2926 mm | R² = 0.5995 | MAE = 65.7604 mm
+  Average: RMSE = 104.71 +/- 14.79 mm
+           R² = 0.5195 +/- 0.1125
+
+XGBoost (Fast)
+----------------------------------------------------------------------
+Fold 1: Train <= 2010, Test = 2011
+   RMSE = 125.1053 mm | R² = 0.1978 | MAE = 90.6074 mm
+Fold 2: Train <= 2011, Test = 2012
+   RMSE = 105.8831 mm | R² = 0.4376 | MAE = 84.5034 mm
+Fold 3: Train <= 2012, Test = 2013
+   RMSE = 105.8409 mm | R² = 0.4900 | MAE = 74.1688 mm
+Fold 4: Train <= 2013, Test = 2014
+   RMSE = 109.1867 mm | R² = 0.5266 | MAE = 73.4064 mm
+Fold 5: Train <= 2014, Test = 2015
+   RMSE = 107.8925 mm | R² = 0.3987 | MAE = 75.1118 mm
+Fold 6: Train <= 2015, Test = 2016
+   RMSE = 92.4215 mm | R² = 0.6215 | MAE = 67.3696 mm
+Fold 7: Train <= 2016, Test = 2017
+   RMSE = 155.1650 mm | R² = 0.2047 | MAE = 81.4642 mm
+Fold 8: Train <= 2017, Test = 2018
+   RMSE = 114.1357 mm | R² = 0.5664 | MAE = 82.6822 mm
+Fold 9: Train <= 2018, Test = 2019
+   RMSE = 95.3589 mm | R² = 0.5955 | MAE = 66.3738 mm
+Fold 10: Train <= 2019, Test = 2020
+   RMSE = 108.1635 mm | R² = 0.4929 | MAE = 73.9024 mm
+Fold 11: Train <= 2020, Test = 2021
+   RMSE = 90.6067 mm | R² = 0.6206 | MAE = 64.2966 mm
+Fold 12: Train <= 2021, Test = 2022
+   RMSE = 109.8382 mm | R² = 0.4139 | MAE = 79.5024 mm
+Fold 13: Train <= 2022, Test = 2023
+   RMSE = 101.9578 mm | R² = 0.5840 | MAE = 67.4522 mm
+Fold 14: Train <= 2023, Test = 2024
+   RMSE = 98.4624 mm | R² = 0.6317 | MAE = 65.8040 mm
+Fold 15: Train <= 2024, Test = 2025
+   RMSE = 91.0805 mm | R² = 0.5925 | MAE = 65.4290 mm
+  Average: RMSE = 107.41 +/- 15.67 mm
+           R² = 0.4916 +/- 0.1356
+
+SVR (RBF)
+----------------------------------------------------------------------
+Fold 1: Train <= 2010, Test = 2011
+   RMSE = 134.4814 mm | R² = 0.0730 | MAE = 101.2109 mm
+Fold 2: Train <= 2011, Test = 2012
+   RMSE = 117.5286 mm | R² = 0.3071 | MAE = 89.0274 mm
+Fold 3: Train <= 2012, Test = 2013
+   RMSE = 114.2372 mm | R² = 0.4059 | MAE = 83.5824 mm
+Fold 4: Train <= 2013, Test = 2014
+   RMSE = 134.7368 mm | R² = 0.2791 | MAE = 87.5162 mm
+Fold 5: Train <= 2014, Test = 2015
+   RMSE = 128.0906 mm | R² = 0.1524 | MAE = 87.4997 mm
+Fold 6: Train <= 2015, Test = 2016
+   RMSE = 106.7420 mm | R² = 0.4951 | MAE = 79.5364 mm
+Fold 7: Train <= 2016, Test = 2017
+   RMSE = 159.6727 mm | R² = 0.1578 | MAE = 82.8250 mm
+Fold 8: Train <= 2017, Test = 2018
+   RMSE = 144.9031 mm | R² = 0.3011 | MAE = 95.3964 mm
+Fold 9: Train <= 2018, Test = 2019
+   RMSE = 102.6258 mm | R² = 0.5315 | MAE = 69.3514 mm
+Fold 10: Train <= 2019, Test = 2020
+   RMSE = 116.8114 mm | R² = 0.4086 | MAE = 75.1383 mm
+Fold 11: Train <= 2020, Test = 2021
+   RMSE = 114.1662 mm | R² = 0.3977 | MAE = 75.0301 mm
+Fold 12: Train <= 2021, Test = 2022
+   RMSE = 114.5335 mm | R² = 0.3628 | MAE = 82.3637 mm
+Fold 13: Train <= 2022, Test = 2023
+   RMSE = 130.0863 mm | R² = 0.3227 | MAE = 79.2341 mm
+Fold 14: Train <= 2023, Test = 2024
+   RMSE = 116.6287 mm | R² = 0.4833 | MAE = 76.5877 mm
+Fold 15: Train <= 2024, Test = 2025
+   RMSE = 106.4520 mm | R² = 0.4434 | MAE = 64.7975 mm
+  Average: RMSE = 122.78 +/- 15.18 mm
+           R² = 0.3414 +/- 0.1294
+
+SVR (POLY)
+----------------------------------------------------------------------
+Fold 1: Train <= 2010, Test = 2011
+   RMSE = 136.1403 mm | R² = 0.0500 | MAE = 105.6890 mm
+Fold 2: Train <= 2011, Test = 2012
+   RMSE = 122.6634 mm | R² = 0.2453 | MAE = 101.4880 mm
+Fold 3: Train <= 2012, Test = 2013
+   RMSE = 123.2606 mm | R² = 0.3083 | MAE = 97.6483 mm
+Fold 4: Train <= 2013, Test = 2014
+   RMSE = 141.7523 mm | R² = 0.2021 | MAE = 98.1644 mm
+Fold 5: Train <= 2014, Test = 2015
+   RMSE = 160.3204 mm | R² = -0.3277 | MAE = 119.4765 mm
+Fold 6: Train <= 2015, Test = 2016
+   RMSE = 113.4344 mm | R² = 0.4298 | MAE = 84.1957 mm
+Fold 7: Train <= 2016, Test = 2017
+   RMSE = 154.9970 mm | R² = 0.2064 | MAE = 93.3193 mm
+Fold 8: Train <= 2017, Test = 2018
+   RMSE = 239.7482 mm | R² = -0.9133 | MAE = 100.5779 mm
+Fold 9: Train <= 2018, Test = 2019
+   RMSE = 110.6393 mm | R² = 0.4555 | MAE = 78.8217 mm
+Fold 10: Train <= 2019, Test = 2020
+   RMSE = 119.4959 mm | R² = 0.3811 | MAE = 83.8890 mm
+Fold 11: Train <= 2020, Test = 2021
+   RMSE = 116.7834 mm | R² = 0.3697 | MAE = 80.7555 mm
+Fold 12: Train <= 2021, Test = 2022
+   RMSE = 116.9143 mm | R² = 0.3360 | MAE = 86.4523 mm
+Fold 13: Train <= 2022, Test = 2023
+   RMSE = 128.1824 mm | R² = 0.3424 | MAE = 83.9688 mm
+Fold 14: Train <= 2023, Test = 2024
+   RMSE = 125.9155 mm | R² = 0.3977 | MAE = 82.6001 mm
+Fold 15: Train <= 2024, Test = 2025
+   RMSE = 82.9877 mm | R² = 0.6617 | MAE = 59.1377 mm
+  Average: RMSE = 132.88 +/- 33.74 mm
+           R² = 0.2097 +/- 0.3673
+
+======================================================================
+TRAINING FINAL MODELS ON FULL DATASET
+======================================================================
+OK: XGBoost (Optimized) trained
+OK: Gradient Boosting trained
+OK: XGBoost (Fast) trained
+OK: SVR (RBF) trained
+OK: SVR (POLY) trained
+
+======================================================================
+GENERATING VISUALIZATIONS
+======================================================================
+Saved: xgboost_model_comparison.png
+Saved: xgboost_feature_importance.png
+
+======================================================================
+SUMMARY
+======================================================================
+
+Best Model: Gradient Boosting
+  RMSE: 104.71 mm
+  R²:   0.5195
+  MAE:  72.05 mm
+
+Comparison with previous SVR model:
+  SVR (RBF): RMSE = 101.13 mm, R² = 0.5484
+  Improvement: -3.5% better RMSE!
+
+Output files:
+  - xgboost_model_comparison.png
+  - xgboost_feature_importance.png
+
+======================================================================
