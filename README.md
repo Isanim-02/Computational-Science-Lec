@@ -4,14 +4,14 @@ A comprehensive rainfall prediction and forecasting system for the Philippines u
 
 ## 🎯 Features
 
-### 📜 Historical Analysis (2020-2023)
-- Analyze actual rainfall data from 2020-2023
+### 📜 Historical Analysis (2010-2025)
+- Analyze actual rainfall data from Jan 2010-Mar 2025
 - Compare predictions with actual measurements
 - Evaluate model performance with RMSE
-- View 141 Philippine cities
+- View 135 Philippine cities
 
-### 🔮 Future Forecasts (2024-2030)
-- Predict rainfall for years 2024-2030
+### 🔮 Future Forecasts (2025-2030)
+- Predict rainfall for years 2025-2030
 - Three climate scenarios:
   - ⚪ **Neutral** - Normal conditions
   - 🔴 **El Niño** - Warmer/Drier conditions
@@ -31,9 +31,9 @@ A comprehensive rainfall prediction and forecasting system for the Philippines u
 
 - Python 3.8 or higher
 - Required data files:
-  - `daily_data_combined_2020_to_2023.csv` (included)
+  - `monthly.csv` (included)
   - `cities.csv` (included)
-  - `hourly_data_combined_2020_to_2023.csv` (NOT included - too large for GitHub, see DATA_SETUP.md)
+  - `oni_indices.csv` (included)
 
 ### Installation
 
@@ -64,19 +64,19 @@ The app will automatically open in your web browser at `http://localhost:8501`
 ## 📖 How to Use
 
 ### Step 1: Choose Mode
-- **📜 Historical (2020-2023)** - Analyze past data
-- **🔮 Forecast (2024-2030)** - Predict future rainfall
+- **📜 Historical (2010-2025)** - Analyze past data
+- **🔮 Forecast (2025-2030)** - Predict future rainfall
 
 ### Step 2: Select Parameters
 
 **Historical Mode:**
-- Year: 2020-2023
+- Year: 2010-2025
 - Month: January-December
 - Kernel: RBF, Polynomial, or Sigmoid
 - Map Type: Scatter or Density Heatmap
 
 **Forecast Mode:**
-- Year: 2024-2030
+- Year: 2025-2030
 - Month: January-December
 - Climate Scenario: Neutral, El Niño, or La Niña
 - Kernel: RBF, Polynomial, or Sigmoid
@@ -117,15 +117,15 @@ The app will automatically open in your web browser at `http://localhost:8501`
 
 ```
 project/
-├── streamlit_rainfall_app.py          # Main web application
-├── rainfall_forecast_module.py        # Forecasting engine
-├── rainfall_prediction_svr_with_hourly.py  # Core ML model
-├── requirements.txt                   # Python dependencies
+├── streamlit_rainfall_app.py         # Main web application
+├── rainfall_forecast_module.py       # Forecasting engine
+├── Rainfall Modeling.ipynb           # Core ML model
+├── requirements.txt                  # Python dependencies
 ├── README.md                         # This file
 ├── START_DYNAMIC_APP.bat             # Windows launcher
 ├── start_dynamic_app.sh              # Linux/Mac launcher
-├── daily_data_combined_2020_to_2023.csv  # Historical data
-└── cities.csv                        # City coordinates
+├── datasets                          # Historical data
+└── models                            # Pretrained models
 ```
 
 ## 📈 Example Use Cases
@@ -147,7 +147,7 @@ Design stormwater systems based on maximum rainfall across all scenarios.
 ### Forecast Limitations
 - Forecasts are **projections**, not exact predictions
 - Uncertainty **increases** with time horizon
-- Based on **2020-2023 patterns** (may not hold if climate shifts)
+- Based on **Jan 2010-Mar 2025 patterns** (may not hold if climate shifts)
 - **Scenario-based** (actual ENSO phase unknown)
 
 ### Best Practices
@@ -183,9 +183,9 @@ See `requirements.txt` for complete list.
 If you use this system in your research, please cite:
 
 ```
-Philippines Rainfall Prediction System (2024)
+Philippines Rainfall Prediction System (2025)
 Support Vector Regression with Climate Scenarios
-Historical Analysis: 2020-2023 | Forecasts: 2024-2030
+Historical Analysis: Jan 2010-Mar 2025 | Forecasts: 2025-2030
 ```
 
 ## 📞 Support
@@ -211,11 +211,11 @@ streamlit run streamlit_rainfall_app.py
 ## 🎉 Summary
 
 **What You Get:**
-- ✅ Historical analysis tool (2020-2023)
-- ✅ Future forecasting system (2024-2030)
+- ✅ Historical analysis tool (2010-2025)
+- ✅ Future forecasting system (2025-2030)
 - ✅ Three climate scenarios
 - ✅ Interactive web interface
-- ✅ All 141 Philippine cities
+- ✅ 135 Philippine cities
 - ✅ Monthly predictions
 - ✅ Easy to use
 
