@@ -12,6 +12,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 from rainfall_forecast_module import RainfallForecaster
 import warnings
 import os
+import joblib
 warnings.filterwarnings('ignore')
 
 
@@ -27,6 +28,13 @@ st.set_page_config(
 # Settings
 ONI_INDICES_PATH = 'datasets/oni_indices.csv'
 MONTHLY_DATASET_PATH = 'datasets/monthly.csv'
+MODELS_PATH = 'models/'
+MODELS_FILENAMES = {
+    'Gradient Boosting': 'gradient_boosting_model.pkl',
+    'XGBoost': 'xgboost_optimized_model.pkl',
+    'RBF': 'svr_rbf_model.pkl',
+    'Polynomial': 'svr_poly_model.pkl'
+}
 
 
 # Constants
@@ -40,7 +48,7 @@ month_to_season = {
 feature_columns = [
     'month_sin', 'month_cos', 'latitude', 'longitude', 'temperature',
     'humidity', 'air_pressure', 'oni_index', 'el_nino', 'la_nina',
-    # 'monthly_rainfall_lag_1'
+    'monthly_rainfall_lag_1'
 ]
 
 
@@ -77,6 +85,7 @@ def load_and_preprocess_data():
         if os.path.exists(MONTHLY_DATASET_PATH):
             has_hourly_data = True
             df_monthly = pd.read_csv(MONTHLY_DATASET_PATH)
+            print("Loaded preprocessed monthly data.")
         else:
             # Manually process daily data to monthly
             df_daily = pd.read_csv('datasets/daily/consolidated.csv')
@@ -191,7 +200,8 @@ def load_and_preprocess_data():
         
         # Only keep cities with complete number of monthly data
         months_per_city = df_monthly.groupby('city').size()
-        num_months = 183 #months_per_city.max()
+        num_months = months_per_city.max()
+
         complete_cities = months_per_city[months_per_city == num_months].index
         df_monthly = df_monthly[df_monthly['city'].isin(complete_cities)]
         
@@ -220,7 +230,22 @@ def train_models(df_monthly):
         df_monthly = df_monthly.copy()
         df_monthly['month_sin'] = np.sin(2 * np.pi * df_monthly['month'] / 12)
         df_monthly['month_cos'] = np.cos(2 * np.pi * df_monthly['month'] / 12)
-        
+
+        # Check first if models already exist in the models folder...
+        if os.path.exists(MODELS_PATH):
+            models = {}
+            for model_name, filename in MODELS_FILENAMES.items():
+                model_filepath = os.path.join(MODELS_PATH, filename)
+                if os.path.exists(model_filepath):
+                    loaded_model = joblib.load(model_filepath)
+                    models[model_name] = loaded_model
+                else:
+                    st.warning(f"Model file not found: {model_filepath}. Retraining required.")
+                    break
+            else:
+                st.success("Loaded pre-trained models from disk!")
+                return models, feature_columns
+
         X = df_monthly[feature_columns].values
         y = df_monthly['monthly_rainfall'].values
         
@@ -450,7 +475,7 @@ def main():
     # Header
     st.markdown('<p class="main-header">🌧️ Philippines Rainfall Prediction System</p>', 
                 unsafe_allow_html=True)
-    st.markdown("**Historical Analysis (2020-2023) + Future Forecasts (2024-2030)**")
+    st.markdown("**Historical Analysis (2010-2025) + Future Forecasts (2025-2030)**")
     st.markdown("---")
     
     # Load data (cached)
@@ -531,7 +556,7 @@ def main():
             format_func=lambda x: month_names[x],
             index=0
         )
-    
+        
     # Kernel selection
     st.sidebar.markdown("---")
     model_name = st.sidebar.radio(
@@ -575,6 +600,11 @@ Polynomial: SVR with polynomial kernel (RMSE: 132.9mm, R²: 0.21)"""
         Analyzes actual past data (2020-2023).
         """)
     
+    if df_monthly.empty:
+        st.error("❌ Historical data is empty! Cannot display forecasts.")
+        return
+
+
     # Get predictions or forecasts
     if is_forecast_mode:
         # FORECAST MODE - Generate predictions for future

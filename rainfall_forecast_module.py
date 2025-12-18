@@ -160,6 +160,27 @@ class RainfallForecaster:
         
         return forecasts
     
+    def forecast_previous_month_rainfall(self, city, future_years):
+        """
+        Forecast previous month's rainfall using historical averages
+        """
+        city_data = self.historical_df[self.historical_df['city'] == city]
+        
+        if len(city_data) == 0:
+            city_data = self.historical_df
+        
+        forecasts = {}
+        monthly_avg = city_data.groupby('month')['monthly_rainfall'].mean()
+        
+        for year in future_years:
+            for month in range(1, 13):
+                if month in monthly_avg.index:
+                    forecasts[(year, month)] = monthly_avg[month]
+                else:
+                    forecasts[(year, month)] = city_data['monthly_rainfall'].mean()
+        
+        return forecasts
+    
     def create_forecast_dataframe(self, future_years, enso_scenario='neutral'):
         """
         Create complete forecast dataframe with all features
@@ -184,8 +205,14 @@ class RainfallForecaster:
         forecast_rows = []
         
         for city in cities:
+            # Get historical data for city
+            city_hist = self.historical_df[self.historical_df['city'] == city].copy()
+
+            if city_hist.empty:
+                city_hist = self.historical_df.copy()
+
             # Get city coordinates
-            city_data = self.historical_df[self.historical_df['city'] == city].iloc[0]
+            city_data = city_hist.iloc[0]
             lat = city_data['latitude']
             lon = city_data['longitude']
             
@@ -193,6 +220,11 @@ class RainfallForecaster:
             temp_forecasts = self.forecast_temperature(city, future_years)
             humidity_forecasts = self.forecast_humidity(city, future_years, temp_forecasts)
             pressure_forecasts = self.forecast_pressure(city, future_years)
+            
+            # Start lag chain from last observed month
+            last_row = city_hist.sort_values(['year', 'month']).iloc[-1]
+            prev_rain = last_row['monthly_rainfall']
+            monthly_rain_avg = city_hist.groupby('month')['monthly_rainfall'].mean()
             
             # Build forecast dataframe
             for year in future_years:
@@ -213,10 +245,13 @@ class RainfallForecaster:
                         'oni_index': oni_index,
                         'el_nino': 1 if oni_index > 0.5 else 0,
                         'la_nina': 1 if oni_index < -0.5 else 0,
+                        'monthly_rainfall_lag_1': prev_rain,
                         'scenario': enso_scenario
                     }
                     
                     forecast_rows.append(row)
+
+                    prev_rain = monthly_rain_avg.get(month, prev_rain)
         
         return pd.DataFrame(forecast_rows)
     
