@@ -1,13 +1,8 @@
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.pipeline import make_pipeline
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from xgboost import XGBRegressor
-from sklearn.svm import SVR
-from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
 from rainfall_forecast_module import RainfallForecaster
 import warnings
@@ -77,125 +72,16 @@ def load_and_preprocess_data():
     """
     Load and preprocess all data (cached for performance)
     """
-    with st.spinner("🔄 Loading and preprocessing data..."):
-        # Load datasets
-        df_cities = pd.read_csv('datasets/cities.csv')
-
-        # Load monthly data if available
+    with st.spinner("🔄 Loading data..."):
+        # Load monthly data
         if os.path.exists(MONTHLY_DATASET_PATH):
             has_hourly_data = True
             df_monthly = pd.read_csv(MONTHLY_DATASET_PATH)
             print("Loaded preprocessed monthly data.")
-        else:
-            # Manually process daily data to monthly
-            df_daily = pd.read_csv('datasets/daily/consolidated.csv')
-            
-            # Try to load hourly data for REAL humidity and pressure
-            has_hourly_data = False
-            try:
-                st.info("📊 Loading hourly data (this takes 2-3 minutes the first time)...")
-                df_hourly = pd.read_csv(
-                    'hourly_data_combined_2020_to_2023.csv',
-                    usecols=['city', 'datetime', 'relative_humidity_2m', 'pressure_msl']
-                )
-                
-                # Process hourly data
-                df_hourly['datetime'] = pd.to_datetime(df_hourly['datetime'])
-                df_hourly['date'] = df_hourly['datetime'].dt.date
-                
-                # Aggregate to daily
-                hourly_daily = df_hourly.groupby(['city', 'date']).agg({
-                    'relative_humidity_2m': 'mean',
-                    'pressure_msl': 'mean'
-                }).reset_index()
-                
-                hourly_daily.rename(columns={
-                    'relative_humidity_2m': 'humidity',
-                    'pressure_msl': 'air_pressure'
-                }, inplace=True)
-                
-                has_hourly_data = True
-                st.success("✅ Loaded real humidity and pressure data!")
-                
-            except FileNotFoundError:
-                st.warning("⚠️ Hourly data not found - using estimated values (lower accuracy)")
-                hourly_daily = None
-            except Exception as e:
-                st.warning(f"⚠️ Could not load hourly data: {str(e)} - using estimated values")
-                hourly_daily = None
-            
-            # Process daily data
-            df_daily['datetime'] = pd.to_datetime(df_daily['datetime'])
-            df_daily['date'] = df_daily['datetime'].dt.date
-            df_daily['year'] = df_daily['datetime'].dt.year
-            df_daily['month'] = df_daily['datetime'].dt.month
-
-            # Fill missing with estimates if hourly data not available or incomplete
-            if 'humidity' not in df_daily.columns or df_daily['humidity'].isna().any():
-                if 'humidity' not in df_daily.columns:
-                    df_daily['humidity'] = 75.0  # Philippines average
-                else:
-                    df_daily['humidity'] = df_daily['humidity'].fillna(75.0)
-            
-            if 'air_pressure' not in df_daily.columns or df_daily['air_pressure'].isna().any():
-                if 'air_pressure' not in df_daily.columns:
-                    df_daily['air_pressure'] = 1011.0  # Tropical average
-                else:
-                    df_daily['air_pressure'] = df_daily['air_pressure'].fillna(1011.0)
-            
-            # Aggregate to monthly
-            agg_dict = {
-                'temperature_2m_mean': 'mean',
-                'precipitation_sum': 'sum',
-            }
-            
-            # Add optional columns if they exist
-            if 'humidity' in df_daily.columns:
-                agg_dict['humidity'] = 'mean'
-            if 'air_pressure' in df_daily.columns:
-                agg_dict['air_pressure'] = 'mean'
-            if 'rain_sum' in df_daily.columns:
-                agg_dict['rain_sum'] = 'sum'
-            if 'wind_speed_10m_max' in df_daily.columns:
-                agg_dict['wind_speed_10m_max'] = 'mean'
-            
-            monthly_agg = df_daily.groupby(['city', 'year', 'month']).agg(agg_dict).reset_index()
-            
-            monthly_agg.rename(columns={
-                'temperature_2m_mean': 'temperature',
-                'precipitation_sum': 'monthly_rainfall'
-            }, inplace=True)
         
-            # Merge with city coordinates
-            df_monthly = monthly_agg.merge(df_cities, on='city', how='inner')
-            
-            # Add ENSO indices
-            oni_data = pd.read_csv(ONI_INDICES_PATH, index_col='year')
-            
-            def get_oni(row):
-                if row['year'] in oni_data.index:
-                    season_col = month_to_season.get(row['month'])
-                    return oni_data.at[row['year'], season_col]
-                else:
-                    return 0
-            
-            df_monthly['oni_index'] = df_monthly.apply(get_oni, axis=1)
-            df_monthly['el_nino'] = (df_monthly['oni_index'] > 0.5).astype(int)
-            df_monthly['la_nina'] = (df_monthly['oni_index'] < -0.5).astype(int)
-        
-        rows_before = len(df_monthly)
-        
-        # Add lagged rainfall per city
-        CALC_MONTHLY_LAG = 'monthly_rainfall_lag_1' in feature_columns
+        rows_before = len(df_monthly)    
 
-        if CALC_MONTHLY_LAG and (not df_monthly['monthly_rainfall_lag_1'].any()):
-            print("\nAdding lagged rainfall features...")
-            grouped = df_monthly.groupby('city')['monthly_rainfall']
-            df_monthly['monthly_rainfall_lag_1'] = grouped.shift(1)
-        elif (not CALC_MONTHLY_LAG) and 'monthly_rainfall_lag_1' in df_monthly.columns:
-            df_monthly.drop(columns=['monthly_rainfall_lag_1'], inplace=True)        
-
-        # STRICT DATA QUALITY: Drop incomplete rows
+        # Drop incomplete rows (monthly csv will have the first month missing lag data)
         df_monthly = df_monthly.dropna()
         
         # Only keep cities with complete number of monthly data
@@ -217,90 +103,33 @@ def load_and_preprocess_data():
 
 
 @st.cache_resource
-def train_models(df_monthly):
+def load_models():
     """
-    Train all three models (cached to avoid retraining)
-    - XGBoost: Best performance (RMSE: 69.96mm, R²: 0.78)
-    - RBF: SVR with RBF kernel (RMSE: 101mm, R²: 0.55)
-    - Polynomial: SVR with polynomial kernel (RMSE: 108mm, R²: 0.49)
-    Uses cyclical time encoding for better seasonality capture
+    Load all pretrained models from disk
     """
-    with st.spinner("🤖 Training XGBoost & SVR models..."):
-        # Add cyclical time encoding for months (better than linear)
-        df_monthly = df_monthly.copy()
-        df_monthly['month_sin'] = np.sin(2 * np.pi * df_monthly['month'] / 12)
-        df_monthly['month_cos'] = np.cos(2 * np.pi * df_monthly['month'] / 12)
-
+    with st.spinner("🤖 Loading pretrained models..."):
         # Check first if models already exist in the models folder...
-        if os.path.exists(MODELS_PATH):
-            models = {}
-            for model_name, filename in MODELS_FILENAMES.items():
-                model_filepath = os.path.join(MODELS_PATH, filename)
-                if os.path.exists(model_filepath):
-                    loaded_model = joblib.load(model_filepath)
-                    models[model_name] = loaded_model
-                else:
-                    st.warning(f"Model file not found: {model_filepath}. Retraining required.")
-                    break
+        if not os.path.exists(MODELS_PATH):
+            raise FileNotFoundError(f"Models folder not found: {MODELS_PATH}")
+         
+        models = {}
+        missing_models = []
+
+        for model_name, filename in MODELS_FILENAMES.items():
+            model_filepath = os.path.join(MODELS_PATH, filename)
+            if os.path.exists(model_filepath):
+                loaded_model = joblib.load(model_filepath)
+                models[model_name] = loaded_model
             else:
-                print("Loaded pre-trained models from disk")
-                return models, feature_columns
+                missing_models.append(model_name)
 
-        X = df_monthly[feature_columns].values
-        y = df_monthly['monthly_rainfall'].values
+        if missing_models:
+            raise FileNotFoundError(
+                f"Missing pretrained model files for: {', '.join(missing_models)}"
+            )
         
-        # 4 models: GradBoost, XGboost (Optimized), SVR (RBF), SVR (Polynomial)
-        models = {
-            'Gradient Boosting': GradientBoostingRegressor(
-                subsample=0.7,
-                n_estimators=300,
-                min_samples_split=10,
-                min_samples_leaf=4,
-                max_features=None,
-                max_depth=5,
-                learning_rate=0.05,
-                random_state=42
-            ),
-            'XGBoost': XGBRegressor(        # Optimized
-                n_estimators=200,
-                learning_rate=0.1,
-                subsample=0.9,
-                reg_lambda=2,
-                reg_alpha=0.01,
-                min_child_weight=7,
-                max_depth=4,
-                gamma=0.1,
-                colsample_bytree=0.9,
-
-                random_state=42,
-                n_jobs=-1
-            ),
-            'RBF': make_pipeline(
-                StandardScaler(),
-                SVR(
-                    kernel='rbf',
-                    C=100,
-                    gamma='scale',
-                    epsilon=0.1
-                ),
-            ),
-            'Polynomial': make_pipeline(
-                    StandardScaler(),  
-                    SVR(
-                    kernel='poly',
-                    C=100,
-                    degree=3,
-                    gamma='scale',
-                    epsilon=0.1
-                ),
-            ),
-        }
-        
-        # Train models
-        for _, model in models.items():
-            model.fit(X, y)
-        
-        return models, feature_columns
+        print("Loaded pre-trained models from disk")
+        return models
 
 
 def get_predictions_for_month_year(df_monthly, models, feature_columns, 
@@ -482,7 +311,7 @@ def main():
     df_monthly = load_and_preprocess_data()
     
     # Train models (cached)
-    models, feature_columns = train_models(df_monthly)
+    models = load_models()
     
     # Sidebar controls
     st.sidebar.title("⚙️ Control Panel")
@@ -509,7 +338,7 @@ def main():
     # Year and Month selection (different for historical vs forecast)
     if is_forecast_mode:
         # FORECAST MODE
-        available_years = list(range(2025, 2031))  # 2024-2030
+        available_years = list(range(2025, 2031))  # 2025-2030
         selected_year = st.sidebar.selectbox(
             "📅 Forecast Year",
             options=available_years,
@@ -582,7 +411,7 @@ Polynomial: SVR with polynomial kernel (RMSE: 132.9mm, R²: 0.21)"""
     if is_forecast_mode:
         st.sidebar.info("""
         **Forecast Mode:**
-        1. Select future year (2024-2030)
+        1. Select future year (2025-2030)
         2. Choose month
         3. Pick climate scenario
         4. Explore forecasts!
@@ -597,7 +426,7 @@ Polynomial: SVR with polynomial kernel (RMSE: 132.9mm, R²: 0.21)"""
         3. Pick visualization type
         4. Explore the predictions!
         
-        Analyzes actual past data (2020-2023).
+        Analyzes actual past data (2010-2025).
         """)
     
     if df_monthly.empty:
@@ -611,7 +440,7 @@ Polynomial: SVR with polynomial kernel (RMSE: 132.9mm, R²: 0.21)"""
         with st.spinner(f"🔮 Generating forecast for {month_names[selected_month]} {selected_year}..."):
             # Generate forecasts for selected year
             model = models[model_name]
-            years_to_forecast = list(range(2024, selected_year + 1))
+            years_to_forecast = list(range(2025, selected_year + 1))
             scenarios = generate_forecasts(df_monthly, model, feature_columns, years_to_forecast, model_name)
             
             # Get forecast for selected month/year/scenario
@@ -892,7 +721,7 @@ Polynomial: SVR with polynomial kernel (RMSE: 132.9mm, R²: 0.21)"""
         <div style='text-align: center; color: #666; padding: 1rem;'>
             <p><b>Philippines Rainfall Prediction & Forecast System</b></p>
             <p>Using Support Vector Regression</p>
-            <p>Historical Data: 2020-2023 | Forecast: 2024-2030 | Models: RBF, Polynomial, Sigmoid</p>
+            <p>Historical Data: 2010-2025 | Forecast: 2025-2030 | Models: GB, XGB (Optim), SVR (RBF), SVR (POLY)</p>
             <p style='font-size: 0.9rem; margin-top: 0.5rem;'>
                 ⚠️ Forecasts are scenario-based projections. Uncertainty increases with time horizon.
             </p>
@@ -903,11 +732,10 @@ Polynomial: SVR with polynomial kernel (RMSE: 132.9mm, R²: 0.21)"""
         <div style='text-align: center; color: #666; padding: 1rem;'>
             <p><b>Philippines Rainfall Prediction System</b></p>
             <p>Using Support Vector Regression with Actual Humidity & Pressure Data</p>
-            <p>Historical Data: 2020-2023 | Models: RBF, Polynomial, Sigmoid</p>
+            <p>Historical Data: 2010-2025 | Models: GB, XGB (Optim), SVR (RBF), SVR (POLY)</p>
         </div>
         """, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
     main()
-
