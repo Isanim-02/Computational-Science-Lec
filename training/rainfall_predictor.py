@@ -229,39 +229,56 @@ class RainfallPredictor:
         print("="*70)
         
         # Create comparison plot
-        _, axes = plt.subplots(1, 2, figsize=(15, 6))
-        
-        # RMSE comparison
+        _, axes = plt.subplots(3, 1, figsize=(7.5, 18))
         models = list(results.keys())
-        rmse_means = [results[m]['rmse_mean'] for m in models]
-        rmse_stds = [results[m]['rmse_std'] for m in models]
-        
-        axes[0].bar(range(len(models)), rmse_means, yerr=rmse_stds, capsize=5, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
-        axes[0].set_xticks(range(len(models)))
-        axes[0].set_xticklabels(models, rotation=15, ha='right')
-        axes[0].set_ylabel('RMSE (mm)', fontsize=12)
-        axes[0].set_title('Root Mean Square Error Comparison', fontsize=14, fontweight='bold')
-        axes[0].grid(axis='y', alpha=0.3)
-        
-        # Add values on bars
-        for i, (mean, std) in enumerate(zip(rmse_means, rmse_stds)):
-            axes[0].text(i, mean + std + 2, f'{mean:.1f}', ha='center', fontsize=10)
         
         # R² comparison
         r2_means = [results[m]['r2_mean'] for m in models]
         r2_stds = [results[m]['r2_std'] for m in models]
         
-        axes[1].bar(range(len(models)), r2_means, yerr=r2_stds, capsize=5, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
-        axes[1].set_xticks(range(len(models)))
-        axes[1].set_xticklabels(models, rotation=15, ha='right')
-        axes[1].set_ylabel('R² Score', fontsize=12)
-        axes[1].set_title('R² Score Comparison', fontsize=14, fontweight='bold')
-        axes[1].grid(axis='y', alpha=0.3)
-        axes[1].set_ylim(0, 1)
-        
+        axes[0].bar(range(len(models)), r2_means, yerr=r2_stds, capsize=5, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
+        axes[0].set_xticks(range(len(models)))
+        axes[0].set_xticklabels(models, rotation=15, ha='right')
+        axes[0].set_ylabel('R² Score', fontsize=12)
+        axes[0].set_title('R² Score Comparison', fontsize=14, fontweight='bold')
+        axes[0].grid(axis='y', alpha=0.3)
+        axes[0].set_ylim(0, 1)
+
         # Add values on bars
         for i, (mean, std) in enumerate(zip(r2_means, r2_stds)):
-            axes[1].text(i, mean + std + 0.02, f'{mean:.3f}', ha='center', fontsize=10)
+            axes[0].text(i, mean + std + 0.02, f'{mean:.3f}', ha='center', fontsize=10)
+
+
+        # RMSE comparison        
+        rmse_means = [results[m]['rmse_mean'] for m in models]
+        rmse_stds = [results[m]['rmse_std'] for m in models]
+        
+        axes[1].bar(range(len(models)), rmse_means, yerr=rmse_stds, capsize=5, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
+        axes[1].set_xticks(range(len(models)))
+        axes[1].set_xticklabels(models, rotation=15, ha='right')
+        axes[1].set_ylabel('RMSE (mm)', fontsize=12)
+        axes[1].set_title('Root Mean Square Error Comparison', fontsize=14, fontweight='bold')
+        axes[1].grid(axis='y', alpha=0.3)
+        
+        # Add values on bars
+        for i, (mean, std) in enumerate(zip(rmse_means, rmse_stds)):
+            axes[1].text(i, mean + std + 2, f'{mean:.1f}', ha='center', fontsize=10)
+        
+        
+        # MAE comparison
+        mae_means = [results[m]['mae_mean'] for m in models]
+        mae_stds = [results[m]['mae_std'] for m in models]
+
+        axes[2].bar(range(len(models)), mae_means, yerr=mae_stds, capsize=5, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
+        axes[2].set_xticks(range(len(models)))
+        axes[2].set_xticklabels(models, rotation=15, ha='right')
+        axes[2].set_ylabel('MAE (mm)', fontsize=12)
+        axes[2].set_title('Mean Absolute Error Comparison', fontsize=14, fontweight='bold')
+        axes[2].grid(axis='y', alpha=0.3)
+
+        # Add values on bars
+        for i, (mean, std) in enumerate(zip(mae_means, mae_stds)):
+            axes[2].text(i, mean + std + 0.5, f'{mean:.1f}', ha='center', fontsize=10)
 
         plt.tight_layout()
 
