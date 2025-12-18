@@ -1,6 +1,6 @@
 """
 Philippines Rainfall Forecasting Module
-Predicts future rainfall (2024-2030) based on historical patterns (2020-2023)
+Predicts future rainfall (2025-2030) based on historical patterns (2010-2025)
 
 Uses two-stage approach:
 1. Forecast meteorological features (temperature, humidity, pressure)
@@ -27,7 +27,7 @@ class RainfallForecaster:
         Parameters:
         -----------
         historical_df : DataFrame
-            Historical monthly data (2020-2023)
+            Historical monthly data (2010-2025)
         trained_model : SVR
             Trained SVR model
         scaler : StandardScaler
@@ -188,7 +188,7 @@ class RainfallForecaster:
         Parameters:
         -----------
         future_years : list
-            Years to forecast (e.g., [2024, 2025, 2026])
+            Years to forecast (e.g., [2025, 2026, 2027])
         enso_scenario : str
             'neutral', 'el_nino', or 'la_nina'
         
@@ -356,14 +356,14 @@ def example_usage():
     """
     Example of how to use the forecaster
     """
-    print("Example: Forecasting rainfall for 2024-2026")
+    print("Example: Forecasting rainfall for 2025-2026")
     print("="*70)
     
     # This would normally come from your trained model
     # For demo purposes, showing the structure
     
     print("\nSteps:")
-    print("1. Load historical data (2020-2023)")
+    print("1. Load historical data (2010-2025)")
     print("2. Train SVR model")
     print("3. Create forecaster with trained model")
     print("4. Generate scenarios (Neutral, El Niño, La Niña)")
