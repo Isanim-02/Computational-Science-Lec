@@ -243,7 +243,7 @@ def train_models(df_monthly):
                     st.warning(f"Model file not found: {model_filepath}. Retraining required.")
                     break
             else:
-                st.success("Loaded pre-trained models from disk!")
+                print("Loaded pre-trained models from disk")
                 return models, feature_columns
 
         X = df_monthly[feature_columns].values
@@ -491,7 +491,7 @@ def main():
     # MODE SELECTION - NEW FEATURE
     mode = st.sidebar.radio(
         "📊 Analysis Mode:",
-        options=['📜 Historical (2020-2023)', '🔮 Forecast (2024-2030)'],
+        options=['📜 Historical (2010-2025)', '🔮 Forecast (2025-2030)'],
         help="Historical: Analyze actual past data\nForecast: Predict future rainfall"
     )
     
@@ -509,7 +509,7 @@ def main():
     # Year and Month selection (different for historical vs forecast)
     if is_forecast_mode:
         # FORECAST MODE
-        available_years = list(range(2024, 2031))  # 2024-2030
+        available_years = list(range(2025, 2031))  # 2024-2030
         selected_year = st.sidebar.selectbox(
             "📅 Forecast Year",
             options=available_years,
@@ -716,8 +716,15 @@ Polynomial: SVR with polynomial kernel (RMSE: 132.9mm, R²: 0.21)"""
             top_cities = df_filtered.nlargest(10, 'predicted_rainfall')['city'].values
             
             fig_scenarios = go.Figure()
+
+            # Define scenario colors
+            scenario_colors = {
+                'el_nino': '#FF7043', 
+                'neutral': '#8BC34A',        
+                'la_nina': '#42A5F5' 
+            }
             
-            for scenario_name in ['neutral', 'el_nino', 'la_nina']:
+            for scenario_name in scenario_colors.keys():
                 scenario_df = scenarios[scenario_name]
                 scenario_month = scenario_df[
                     (scenario_df['year'] == selected_year) & 
@@ -733,7 +740,8 @@ Polynomial: SVR with polynomial kernel (RMSE: 132.9mm, R²: 0.21)"""
                 fig_scenarios.add_trace(go.Bar(
                     name=scenario_name.replace('_', ' ').title(),
                     x=top_cities,
-                    y=city_preds
+                    y=city_preds,
+                    marker_color=scenario_colors[scenario_name]
                 ))
             
             fig_scenarios.update_layout(
