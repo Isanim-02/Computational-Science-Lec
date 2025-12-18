@@ -1,5 +1,5 @@
-
-
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.pipeline import make_pipeline
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -11,6 +11,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score
 from rainfall_forecast_module import RainfallForecaster
 import warnings
+import os
 warnings.filterwarnings('ignore')
 
 
@@ -21,6 +22,27 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+
+# Settings
+ONI_INDICES_PATH = 'datasets/oni_indices.csv'
+MONTHLY_DATASET_PATH = 'datasets/monthly.csv'
+
+
+# Constants
+month_to_season = {
+    1: 'DJF', 2: 'DJF', 3: 'JFM',
+    4: 'FMA', 5: 'FMA', 6: 'AMJ',
+    7: 'MJJ', 8: 'JJA', 9: 'JAS',
+    10: 'ASO', 11: 'SON', 12: 'NDJ'
+}
+
+feature_columns = [
+    'month_sin', 'month_cos', 'latitude', 'longitude', 'temperature',
+    'humidity', 'air_pressure', 'oni_index', 'el_nino', 'la_nina',
+    # 'monthly_rainfall_lag_1'
+]
+
 
 # Custom CSS
 st.markdown("""
@@ -50,129 +72,131 @@ def load_and_preprocess_data():
     with st.spinner("🔄 Loading and preprocessing data..."):
         # Load datasets
         df_cities = pd.read_csv('datasets/cities.csv')
-        df_daily = pd.read_csv('datasets/daily/consolidated.csv')
-        
-        # Try to load hourly data for REAL humidity and pressure
-        has_hourly_data = False
-        try:
-            st.info("📊 Loading hourly data (this takes 2-3 minutes the first time)...")
-            df_hourly = pd.read_csv(
-                'datasets/hourly/consolidated.csv',
-                usecols=['city_name', 'datetime', 'relative_humidity_2m', 'pressure_msl']
-            )
-            
-            # Process hourly data
-            df_hourly['datetime'] = pd.to_datetime(df_hourly['datetime'])
-            df_hourly['date'] = df_hourly['datetime'].dt.date
-            
-            # Aggregate to daily
-            hourly_daily = df_hourly.groupby(['city_name', 'date']).agg({
-                'relative_humidity_2m': 'mean',
-                'pressure_msl': 'mean'
-            }).reset_index()
-            
-            hourly_daily.rename(columns={
-                'relative_humidity_2m': 'humidity',
-                'pressure_msl': 'air_pressure'
-            }, inplace=True)
-            
+
+        # Load monthly data if available
+        if os.path.exists(MONTHLY_DATASET_PATH):
             has_hourly_data = True
-            st.success("✅ Loaded real humidity and pressure data!")
+            df_monthly = pd.read_csv(MONTHLY_DATASET_PATH)
+        else:
+            # Manually process daily data to monthly
+            df_daily = pd.read_csv('datasets/daily/consolidated.csv')
             
-        except FileNotFoundError:
-            st.warning("⚠️ Hourly data not found - using estimated values (lower accuracy)")
-            hourly_daily = None
-        except Exception as e:
-            st.warning(f"⚠️ Could not load hourly data: {str(e)} - using estimated values")
-            hourly_daily = None
+            # Try to load hourly data for REAL humidity and pressure
+            has_hourly_data = False
+            try:
+                st.info("📊 Loading hourly data (this takes 2-3 minutes the first time)...")
+                df_hourly = pd.read_csv(
+                    'hourly_data_combined_2020_to_2023.csv',
+                    usecols=['city', 'datetime', 'relative_humidity_2m', 'pressure_msl']
+                )
+                
+                # Process hourly data
+                df_hourly['datetime'] = pd.to_datetime(df_hourly['datetime'])
+                df_hourly['date'] = df_hourly['datetime'].dt.date
+                
+                # Aggregate to daily
+                hourly_daily = df_hourly.groupby(['city', 'date']).agg({
+                    'relative_humidity_2m': 'mean',
+                    'pressure_msl': 'mean'
+                }).reset_index()
+                
+                hourly_daily.rename(columns={
+                    'relative_humidity_2m': 'humidity',
+                    'pressure_msl': 'air_pressure'
+                }, inplace=True)
+                
+                has_hourly_data = True
+                st.success("✅ Loaded real humidity and pressure data!")
+                
+            except FileNotFoundError:
+                st.warning("⚠️ Hourly data not found - using estimated values (lower accuracy)")
+                hourly_daily = None
+            except Exception as e:
+                st.warning(f"⚠️ Could not load hourly data: {str(e)} - using estimated values")
+                hourly_daily = None
+            
+            # Process daily data
+            df_daily['datetime'] = pd.to_datetime(df_daily['datetime'])
+            df_daily['date'] = df_daily['datetime'].dt.date
+            df_daily['year'] = df_daily['datetime'].dt.year
+            df_daily['month'] = df_daily['datetime'].dt.month
+
+            # Fill missing with estimates if hourly data not available or incomplete
+            if 'humidity' not in df_daily.columns or df_daily['humidity'].isna().any():
+                if 'humidity' not in df_daily.columns:
+                    df_daily['humidity'] = 75.0  # Philippines average
+                else:
+                    df_daily['humidity'] = df_daily['humidity'].fillna(75.0)
+            
+            if 'air_pressure' not in df_daily.columns or df_daily['air_pressure'].isna().any():
+                if 'air_pressure' not in df_daily.columns:
+                    df_daily['air_pressure'] = 1011.0  # Tropical average
+                else:
+                    df_daily['air_pressure'] = df_daily['air_pressure'].fillna(1011.0)
+            
+            # Aggregate to monthly
+            agg_dict = {
+                'temperature_2m_mean': 'mean',
+                'precipitation_sum': 'sum',
+            }
+            
+            # Add optional columns if they exist
+            if 'humidity' in df_daily.columns:
+                agg_dict['humidity'] = 'mean'
+            if 'air_pressure' in df_daily.columns:
+                agg_dict['air_pressure'] = 'mean'
+            if 'rain_sum' in df_daily.columns:
+                agg_dict['rain_sum'] = 'sum'
+            if 'wind_speed_10m_max' in df_daily.columns:
+                agg_dict['wind_speed_10m_max'] = 'mean'
+            
+            monthly_agg = df_daily.groupby(['city', 'year', 'month']).agg(agg_dict).reset_index()
+            
+            monthly_agg.rename(columns={
+                'temperature_2m_mean': 'temperature',
+                'precipitation_sum': 'monthly_rainfall'
+            }, inplace=True)
         
-        # Process daily data
-        df_daily['datetime'] = pd.to_datetime(df_daily['datetime'])
-        df_daily['date'] = df_daily['datetime'].dt.date
-        df_daily['year'] = df_daily['datetime'].dt.year
-        df_daily['month'] = df_daily['datetime'].dt.month
-        
-        # Merge hourly data if available
-        if has_hourly_data and hourly_daily is not None:
-            df_daily = df_daily.merge(
-                hourly_daily[['city_name', 'date', 'humidity', 'air_pressure']],
-                on=['city_name', 'date'],
-                how='left'
-            )
-        
-        # Fill missing with estimates if hourly data not available or incomplete
-        if 'humidity' not in df_daily.columns or df_daily['humidity'].isna().any():
-            if 'humidity' not in df_daily.columns:
-                df_daily['humidity'] = 75.0  # Philippines average
-            else:
-                df_daily['humidity'] = df_daily['humidity'].fillna(75.0)
-        
-        if 'air_pressure' not in df_daily.columns or df_daily['air_pressure'].isna().any():
-            if 'air_pressure' not in df_daily.columns:
-                df_daily['air_pressure'] = 1011.0  # Tropical average
-            else:
-                df_daily['air_pressure'] = df_daily['air_pressure'].fillna(1011.0)
-        
-        # Aggregate to monthly
-        agg_dict = {
-            'temperature_2m_mean': 'mean',
-            'precipitation_sum': 'sum',
-        }
-        
-        # Add optional columns if they exist
-        if 'humidity' in df_daily.columns:
-            agg_dict['humidity'] = 'mean'
-        if 'air_pressure' in df_daily.columns:
-            agg_dict['air_pressure'] = 'mean'
-        if 'rain_sum' in df_daily.columns:
-            agg_dict['rain_sum'] = 'sum'
-        if 'wind_speed_10m_max' in df_daily.columns:
-            agg_dict['wind_speed_10m_max'] = 'mean'
-        
-        monthly_agg = df_daily.groupby(['city_name', 'year', 'month']).agg(agg_dict).reset_index()
-        
-        monthly_agg.rename(columns={
-            'temperature_2m_mean': 'temperature',
-            'precipitation_sum': 'monthly_rainfall'
-        }, inplace=True)
-        
-        # Merge with city coordinates
-        df_monthly = monthly_agg.merge(df_cities, on='city_name', how='inner')
-        
-        # Add ENSO indices
-        oni_data = {
-            2020: {1: 0.5, 2: 0.6, 3: 0.4, 4: 0.2, 5: -0.1, 6: -0.3, 
-                   7: -0.4, 8: -0.6, 9: -0.9, 10: -1.2, 11: -1.3, 12: -1.3},
-            2021: {1: -1.4, 2: -1.1, 3: -0.8, 4: -0.6, 5: -0.5, 6: -0.4,
-                   7: -0.5, 8: -0.7, 9: -0.9, 10: -1.1, 11: -1.1, 12: -1.0},
-            2022: {1: -0.9, 2: -0.8, 3: -0.6, 4: -0.4, 5: -0.2, 6: 0.1,
-                   7: 0.3, 8: 0.5, 9: 0.8, 10: 1.0, 11: 1.1, 12: 1.0},
-            2023: {1: -0.7, 2: -0.4, 3: -0.1, 4: 0.2, 5: 0.5, 6: 0.8,
-                   7: 1.1, 8: 1.3, 9: 1.6, 10: 1.8, 11: 1.9, 12: 2.0}
-        }
-        
-        def get_oni(row):
-            year, month = int(row['year']), int(row['month'])
-            if year in oni_data and month in oni_data[year]:
-                return oni_data[year][month]
-            return 0.0
-        
-        df_monthly['oni_index'] = df_monthly.apply(get_oni, axis=1)
-        df_monthly['el_nino'] = (df_monthly['oni_index'] > 0.5).astype(int)
-        df_monthly['la_nina'] = (df_monthly['oni_index'] < -0.5).astype(int)
+            # Merge with city coordinates
+            df_monthly = monthly_agg.merge(df_cities, on='city', how='inner')
+            
+            # Add ENSO indices
+            oni_data = pd.read_csv(ONI_INDICES_PATH, index_col='year')
+            
+            def get_oni(row):
+                if row['year'] in oni_data.index:
+                    season_col = month_to_season.get(row['month'])
+                    return oni_data.at[row['year'], season_col]
+                else:
+                    return 0
+            
+            df_monthly['oni_index'] = df_monthly.apply(get_oni, axis=1)
+            df_monthly['el_nino'] = (df_monthly['oni_index'] > 0.5).astype(int)
+            df_monthly['la_nina'] = (df_monthly['oni_index'] < -0.5).astype(int)
         
         rows_before = len(df_monthly)
         
+        # Add lagged rainfall per city
+        CALC_MONTHLY_LAG = 'monthly_rainfall_lag_1' in feature_columns
+
+        if CALC_MONTHLY_LAG and (not df_monthly['monthly_rainfall_lag_1'].any()):
+            print("\nAdding lagged rainfall features...")
+            grouped = df_monthly.groupby('city')['monthly_rainfall']
+            df_monthly['monthly_rainfall_lag_1'] = grouped.shift(1)
+        elif (not CALC_MONTHLY_LAG) and 'monthly_rainfall_lag_1' in df_monthly.columns:
+            df_monthly.drop(columns=['monthly_rainfall_lag_1'], inplace=True)        
+
         # STRICT DATA QUALITY: Drop incomplete rows
         df_monthly = df_monthly.dropna()
         
-        # Only keep cities with complete 48 months (4 years * 12 months)
-        city_month_counts = df_monthly.groupby('city_name').size()
-        complete_cities = city_month_counts[city_month_counts == 48].index
-        df_monthly = df_monthly[df_monthly['city_name'].isin(complete_cities)]
+        # Only keep cities with complete number of monthly data
+        months_per_city = df_monthly.groupby('city').size()
+        num_months = 183 #months_per_city.max()
+        complete_cities = months_per_city[months_per_city == num_months].index
+        df_monthly = df_monthly[df_monthly['city'].isin(complete_cities)]
         
         rows_after = len(df_monthly)
-        cities_count = df_monthly['city_name'].nunique()
+        cities_count = df_monthly['city'].nunique()
         
         # Store metadata
         df_monthly.attrs['has_hourly_data'] = has_hourly_data
@@ -197,54 +221,64 @@ def train_models(df_monthly):
         df_monthly['month_sin'] = np.sin(2 * np.pi * df_monthly['month'] / 12)
         df_monthly['month_cos'] = np.cos(2 * np.pi * df_monthly['month'] / 12)
         
-        feature_columns = [
-            'month_sin', 'month_cos', 'latitude', 'longitude', 'temperature',
-            'humidity', 'air_pressure', 'oni_index', 'el_nino', 'la_nina'
-        ]
-        
         X = df_monthly[feature_columns].values
         y = df_monthly['monthly_rainfall'].values
         
-        # Scaler for SVR models
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        
-        # Three models: XGBoost (best) + SVR variants
+        # 4 models: GradBoost, XGboost (Optimized), SVR (RBF), SVR (Polynomial)
         models = {
-            'XGBoost': XGBRegressor(
+            'Gradient Boosting': GradientBoostingRegressor(
+                subsample=0.7,
+                n_estimators=300,
+                min_samples_split=10,
+                min_samples_leaf=4,
+                max_features=None,
+                max_depth=5,
+                learning_rate=0.05,
+                random_state=42
+            ),
+            'XGBoost': XGBRegressor(        # Optimized
                 n_estimators=200,
                 learning_rate=0.1,
-                max_depth=6,
-                min_child_weight=3,
+                subsample=0.9,
+                reg_lambda=2,
+                reg_alpha=0.01,
+                min_child_weight=7,
+                max_depth=4,
+                gamma=0.1,
+                colsample_bytree=0.9,
+
                 random_state=42,
                 n_jobs=-1
             ),
-            'RBF': SVR(
-                kernel='rbf',
-                C=100,
-                gamma='scale',
-                epsilon=0.1
+            'RBF': make_pipeline(
+                StandardScaler(),
+                SVR(
+                    kernel='rbf',
+                    C=100,
+                    gamma='scale',
+                    epsilon=0.1
+                ),
             ),
-            'Polynomial': SVR(
-                kernel='poly',
-                C=100,
-                degree=3,
-                gamma='scale',
-                epsilon=0.1
-            )
+            'Polynomial': make_pipeline(
+                    StandardScaler(),  
+                    SVR(
+                    kernel='poly',
+                    C=100,
+                    degree=3,
+                    gamma='scale',
+                    epsilon=0.1
+                ),
+            ),
         }
         
-        # Train models (XGBoost with raw data, SVR with scaled data)
-        for name, model in models.items():
-            if 'XGBoost' in name:
-                model.fit(X, y)  # Tree-based doesn't need scaling
-            else:
-                model.fit(X_scaled, y)  # SVR needs scaling
+        # Train models
+        for _, model in models.items():
+            model.fit(X, y)
         
-        return models, scaler, feature_columns
+        return models, feature_columns
 
 
-def get_predictions_for_month_year(df_monthly, models, scaler, feature_columns, 
+def get_predictions_for_month_year(df_monthly, models, feature_columns, 
                                    selected_year, selected_month, model_name):
     """
     Filter data and compute predictions for specific month/year
@@ -266,13 +300,9 @@ def get_predictions_for_month_year(df_monthly, models, scaler, feature_columns,
     # Prepare features
     X_filtered = df_filtered[feature_columns].values
     
-    # Get predictions (XGBoost uses raw data, SVR uses scaled data)
+    # Get predictions
     model = models[model_name]
-    if 'XGBoost' in model_name:
-        predictions = model.predict(X_filtered)
-    else:
-        X_filtered_scaled = scaler.transform(X_filtered)
-        predictions = model.predict(X_filtered_scaled)
+    predictions = model.predict(X_filtered)
     
     # Clip predictions to minimum of 0 (no negative rainfall)
     predictions = np.maximum(predictions, 0)
@@ -282,8 +312,9 @@ def get_predictions_for_month_year(df_monthly, models, scaler, feature_columns,
     
     # Calculate metrics (RMSE only)
     rmse = np.sqrt(mean_squared_error(actual_values, predictions))
+    r2 = r2_score(actual_values, predictions)
     
-    return df_filtered, predictions, actual_values, rmse
+    return df_filtered, predictions, actual_values, rmse, r2
 
 
 def create_interactive_map(df_filtered, predictions):
@@ -316,7 +347,7 @@ def create_interactive_map(df_filtered, predictions):
         ),
         text=[f"{city}<br>Predicted: {pred:.1f} mm<br>Lat: {lat:.2f}<br>Lon: {lon:.2f}" 
               for city, pred, lat, lon in zip(
-                  df_filtered['city_name'], 
+                  df_filtered['city'], 
                   predictions,
                   df_filtered['latitude'],
                   df_filtered['longitude']
@@ -367,12 +398,12 @@ def create_heatmap_density(df_filtered, predictions):
     return fig
 
 
-def create_comparison_chart(actual_values, predictions, city_names):
+def create_comparison_chart(actual_values, predictions, citys):
     """
     Create comparison bar chart
     """
     df_compare = pd.DataFrame({
-        'City': city_names[:20],  # Show top 20 cities
+        'City': citys[:20],  # Show top 20 cities
         'Actual': actual_values[:20],
         'Predicted': predictions[:20]
     })
@@ -404,10 +435,10 @@ def create_comparison_chart(actual_values, predictions, city_names):
 
 
 @st.cache_data
-def generate_forecasts(_df_monthly, _model, _scaler, _feature_columns, future_years, model_name):
+def generate_forecasts(_df_monthly, _model, _feature_columns, future_years, model_name):
     """Generate forecast scenarios (cached by model)"""
     with st.spinner(f"🔮 Generating forecasts for {future_years[0]}-{future_years[-1]} ({model_name})..."):
-        forecaster = RainfallForecaster(_df_monthly, _model, _scaler, _feature_columns)
+        forecaster = RainfallForecaster(_df_monthly, _model, _feature_columns)
         scenarios = forecaster.generate_all_scenarios(future_years)
         return scenarios
 
@@ -426,7 +457,7 @@ def main():
     df_monthly = load_and_preprocess_data()
     
     # Train models (cached)
-    models, scaler, feature_columns = train_models(df_monthly)
+    models, feature_columns = train_models(df_monthly)
     
     # Sidebar controls
     st.sidebar.title("⚙️ Control Panel")
@@ -505,9 +536,12 @@ def main():
     st.sidebar.markdown("---")
     model_name = st.sidebar.radio(
         "🚀 ML Algorithm",
-        options=['XGBoost', 'RBF', 'Polynomial'],
+        options=['Gradient Boosting', 'XGBoost', 'RBF', 'Polynomial'],
         index=0,
-        help="XGBoost: Best accuracy (RMSE: 69.96mm, R²: 0.78)\nRBF: SVR with RBF kernel (RMSE: 101mm, R²: 0.55)\nPolynomial: SVR with polynomial kernel (RMSE: 108mm, R²: 0.49)"
+        help="""Gradient Boosting: Best (RMSE: 104.7mm, R²: 0.52)
+XGBoost: (RMSE: 106.2mm, R²: 0.50)
+RBF: SVR with RBF kernel (RMSE: 122.8mm, R²: 0.34)
+Polynomial: SVR with polynomial kernel (RMSE: 132.9mm, R²: 0.21)"""
     )
     
     # Visualization type
@@ -548,7 +582,7 @@ def main():
             # Generate forecasts for selected year
             model = models[model_name]
             years_to_forecast = list(range(2024, selected_year + 1))
-            scenarios = generate_forecasts(df_monthly, model, scaler, feature_columns, years_to_forecast, model_name)
+            scenarios = generate_forecasts(df_monthly, model, feature_columns, years_to_forecast, model_name)
             
             # Get forecast for selected month/year/scenario
             forecast_df = scenarios[scenario]
@@ -564,10 +598,10 @@ def main():
         # HISTORICAL MODE - Analyze past data
         with st.spinner(f"🔮 Computing predictions for {month_names[selected_month]} {selected_year}..."):
             result = get_predictions_for_month_year(
-                df_monthly, models, scaler, feature_columns,
+                df_monthly, models, feature_columns,
                 selected_year, selected_month, model_name
             )
-            df_filtered, predictions, actual_values, rmse = result
+            df_filtered, predictions, actual_values, rmse, r2 = result
     
     if df_filtered is None or len(df_filtered) == 0:
         st.error(f"❌ No data available for {month_names[selected_month]} {selected_year}")
@@ -649,7 +683,7 @@ def main():
             st.subheader("📊 Scenario Comparison")
             
             # Show comparison for top cities
-            top_cities = df_filtered.nlargest(10, 'predicted_rainfall')['city_name'].values
+            top_cities = df_filtered.nlargest(10, 'predicted_rainfall')['city'].values
             
             fig_scenarios = go.Figure()
             
@@ -663,7 +697,7 @@ def main():
                 # Get predictions for top cities
                 city_preds = []
                 for city in top_cities:
-                    pred = scenario_month[scenario_month['city_name'] == city]['predicted_rainfall'].values
+                    pred = scenario_month[scenario_month['city'] == city]['predicted_rainfall'].values
                     city_preds.append(pred[0] if len(pred) > 0 else 0)
                 
                 fig_scenarios.add_trace(go.Bar(
@@ -687,7 +721,7 @@ def main():
             fig_compare = create_comparison_chart(
                 actual_values, 
                 predictions, 
-                df_filtered['city_name'].values
+                df_filtered['city'].values
             )
             st.plotly_chart(fig_compare, use_container_width=True)
     
@@ -788,7 +822,7 @@ def main():
     with st.expander("📋 View Detailed Data Table"):
         if is_forecast_mode:
             # Forecast mode - show forecast only
-            display_df = df_filtered[['city_name', 'latitude', 'longitude', 
+            display_df = df_filtered[['city', 'latitude', 'longitude', 
                                        'temperature', 'humidity', 'air_pressure']].copy()
             display_df['forecast_rainfall'] = predictions
             
@@ -799,7 +833,7 @@ def main():
             )
         else:
             # Historical mode - show actual vs predicted
-            display_df = df_filtered[['city_name', 'latitude', 'longitude', 
+            display_df = df_filtered[['city', 'latitude', 'longitude', 
                                        'temperature', 'humidity', 'air_pressure', 
                                        'monthly_rainfall']].copy()
             display_df['predicted_rainfall'] = predictions
